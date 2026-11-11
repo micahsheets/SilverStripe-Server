@@ -1,0 +1,17 @@
+/.graphql-generated/
+/public/_graphql/
+/silverstripe-cache/
+/.env
+/vendor/
+/themes/startup-theme/
+/_resources/
+/public/_resources/
+/public/assets/
+# Environment & local secrets
+.env
+
+# OS & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
