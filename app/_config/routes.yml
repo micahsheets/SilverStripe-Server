@@ -1,0 +1,9 @@
+---
+Name: approutes
+Before:
+  - '#coreroutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'api/vpx//$Action/$ID': App\Controller\UDPController
+    'panel//$Action/$ID': App\Controller\TouchPanelController
