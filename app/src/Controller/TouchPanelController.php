@@ -8,6 +8,7 @@ use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\ORM\FieldType\DBHTMLText;
 use SilverStripe\Security\SecurityToken;
+use SilverStripe\SiteConfig\SiteConfig;
 
 class TouchPanelController extends Controller
 {
@@ -15,12 +16,14 @@ class TouchPanelController extends Controller
 
     private static array $allowed_actions = [
         'index',
+        'discover',
         'unlock',
         'lock',
     ];
 
     private static array $url_handlers = [
         '' => 'index',
+        'discover' => 'discover',
         'unlock' => 'unlock',
         'lock' => 'lock',
     ];
@@ -35,6 +38,8 @@ class TouchPanelController extends Controller
 
     public function index(HTTPRequest $request): DBHTMLText
     {
+        $siteConfig = SiteConfig::current_site_config();
+
         if (!VPXSecurityGuard::isAuthenticated($request)) {
             return $this->customise([
                 'ErrorMessage' => $request->getVar('err') ? 'Invalid Operator PIN' : '',
@@ -43,6 +48,17 @@ class TouchPanelController extends Controller
         }
 
         return $this->renderWith(['App/Controller/TouchPanelController']);
+    }
+
+    public function discover(HTTPRequest $request): DBHTMLText|HTTPResponse
+    {
+        $siteConfig = SiteConfig::current_site_config();
+
+        if (!VPXSecurityGuard::isAuthenticated($request)) {
+            return $this->redirect('/panel');
+        }
+
+        return $this->renderWith(['App/Controller/TouchPanelDiscover']);
     }
 
     public function unlock(HTTPRequest $request): HTTPResponse

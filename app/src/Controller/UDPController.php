@@ -13,13 +13,13 @@ use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Control\HTTPResponse_Exception;
 use SilverStripe\Security\SecurityToken;
 use Throwable;
+use App\Service\VPXDiscoveryService;
 
 class UDPController extends Controller
 {
     private static string $url_segment = 'api/vpx';
 
-    private static array $allowed_actions = ['status', 'route', 'preset', 'command', 'ping'];
-
+    private static array $allowed_actions = ['status', 'route', 'preset', 'command', 'ping', 'discover', 'import'];
 
     private VPXUDPService $udpService;
 
@@ -180,17 +180,92 @@ class UDPController extends Controller
             ->addHeader('Content-Type', 'application/json');
     }
 
-     public function ping(HTTPRequest $request): HTTPResponse
- {
-     $statuses = [];
-     foreach (VPXDevice::get() as $device) {
-         $statuses[(int) $device->ID] = $this->udpService->isDeviceOnline($device);
-     }
+    public function ping(HTTPRequest $request): HTTPResponse
+    {
+        $statuses = [];
+        foreach (VPXDevice::get() as $device) {
+            $statuses[(int) $device->ID] = $this->udpService->isDeviceOnline($device);
+        }
 
-     return $this->jsonResponse([
-         'success' => true,
-         'online' => $statuses,
-     ]);
- }
+        return $this->jsonResponse([
+            'success' => true,
+            'online' => $statuses,
+        ]);
+    }
+
+    public function discover(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
+        }
+
+        try {
+            $data = $this->parseRequestData($request);
+            $subnet = trim((string) ($data['subnet'] ?? ''));
+            $devices = VPXDiscoveryService::singleton()->scan($subnet);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'devices' => $devices,
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function import(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
+        }
+
+        try {
+            $data = $this->parseRequestData($request);
+            $items = $data['devices'] ?? [];
+            if (!is_array($items) || count($items) === 0) {
+                return $this->jsonResponse(['success' => false, 'error' => 'No devices selected for import.'], 400);
+            }
+
+            $created = 0;
+            $updated = 0;
+
+            foreach ($items as $item) {
+                $ip = trim((string) ($item['ip'] ?? ''));
+                if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+                    continue;
+                }
+
+                $device = VPXDevice::get()->filter('IPAddress', $ip)->first();
+                $isNew = !$device;
+                if ($isNew) {
+                    $device = VPXDevice::create();
+                    $device->IPAddress = $ip;
+                }
+
+                $device->Title = trim((string) ($item['title'] ?? $ip));
+                $device->Hostname = trim((string) ($item['hostname'] ?? $device->Title));
+                $device->Mode = ($item['mode'] ?? '') === VPXDevice::MODE_ENCODER
+                    ? VPXDevice::MODE_ENCODER
+                    : VPXDevice::MODE_DECODER;
+                $device->UDPPort = (int) ($item['udpPort'] ?? 6970);
+                $device->LocationID = (int) ($item['locationId'] ?? 0);
+                if (!empty($item['mac'])) {
+                    $device->MACAddress = trim((string) $item['mac']);
+                }
+                $device->write();
+
+                $isNew ? $created++ : $updated++;
+            }
+
+            return $this->jsonResponse([
+                'success' => true,
+                'created' => $created,
+                'updated' => $updated,
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
 
 }

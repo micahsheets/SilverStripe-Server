@@ -3,8 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Unlock AV Touch Panel</title>
+    <title><% if $SiteConfig.PanelTitle %>$SiteConfig.PanelTitle<% else %>Unlock AV Touch Panel<% end_if %></title>
     <link rel="stylesheet" href="/css/touch-panel.css">
+    <% if $SiteConfig.PanelBackground.exists %>
+    <style>
+        body {
+            background-image:
+                linear-gradient(rgba(15, 23, 42, 0.{$SiteConfig.BackgroundOverlayOpacity}), rgba(15, 23, 42, 0.{$SiteConfig.BackgroundOverlayOpacity})),
+                url('$SiteConfig.PanelBackground.ScaleWidth(1920).URL');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        .lock-box {
+            background-color: rgba(30, 41, 59, 0.88);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+    </style>
+    <% end_if %>
     <style>
         body { justify-content: center; align-items: center; }
         .lock-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 20px; padding: 28px; width: 320px; text-align: center; }
@@ -19,7 +36,10 @@
 </head>
 <body>
     <form class="lock-box" method="POST" action="/panel/unlock">
-        <h2 style="margin:0;">VPX AV PANEL LOCKED</h2>
+        <% if $SiteConfig.PanelLogo.exists %>
+            <img src="$SiteConfig.PanelLogo.ScaleHeight(44).URL" alt="$SiteConfig.PanelTitle" style="max-height:44px; width:auto; margin-bottom:10px;">
+        <% end_if %>
+        <h2 style="margin:0;"><% if $SiteConfig.PanelTitle %>$SiteConfig.PanelTitle<% else %>VPX AV PANEL LOCKED<% end_if %></h2>
         <div class="pin-display" id="pinDots"></div>
         <% if $ErrorMessage %><div class="err-msg">$ErrorMessage</div><% end_if %>
         <input type="hidden" name="SecurityID" value="$CSRFToken">
