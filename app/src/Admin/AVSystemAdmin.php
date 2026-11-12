@@ -3,6 +3,7 @@
 namespace App\Admin;
 
 use App\Model\Location;
+use App\Model\RouteAuditLog;
 use App\Model\RoutePreset;
 use App\Model\VPXDevice;
 use SilverStripe\Admin\ModelAdmin;
@@ -19,5 +20,6 @@ class AVSystemAdmin extends ModelAdmin
         VPXDevice::class,
         RoutePreset::class,
         Location::class,
+        RouteAuditLog::class,
     ];
 }

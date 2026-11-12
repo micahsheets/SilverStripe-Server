@@ -14,7 +14,10 @@
             <span class="status-dot" id="connectionDot"></span>
             <span>VPX AV MATRIX</span>
         </div>
-        <div class="room-tabs" id="roomTabs"></div>
+        <div class="header-actions">
+            <div class="room-tabs" id="roomTabs"></div>
+            <a href="/panel/lock" class="lock-btn">Lock Panel</a>
+        </div>
     </header>
 
     <main>
@@ -26,8 +29,16 @@
         <div class="routing-columns">
             <div class="column-box">
                 <div class="column-header">
-                    <h2 style="margin:0;">1. Select Display(s)</h2>
-                    <span class="hint" id="selectionHint">Tap displays to select</span>
+                    <div>
+                        <h2 style="margin:0;">1. Select Display(s)</h2>
+                        <span class="hint" id="selectionHint">Tap displays to select</span>
+                    </div>
+                    <div class="bulk-power-controls">
+                        <button type="button" class="bulk-btn select" onclick="selectAllVisibleDisplays()">Select All</button>
+                        <button type="button" class="bulk-btn clear" onclick="clearSelectedDisplays()">Clear</button>
+                        <button type="button" class="bulk-btn on" onclick="powerAllVisibleDisplays(true)">All ON</button>
+                        <button type="button" class="bulk-btn off" onclick="powerAllVisibleDisplays(false)">All OFF</button>
+                    </div>
                 </div>
                 <div class="device-grid" id="decodersGrid"></div>
             </div>

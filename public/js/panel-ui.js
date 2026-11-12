@@ -9,6 +9,22 @@ function getEncoderName(encoderId) {
     return enc ? enc.title : 'Encoder #' + encoderId;
 }
 
+function createPingBadge(deviceId) {
+    const status = state.onlineMap[deviceId];
+    const badge = document.createElement('span');
+    badge.className = 'ping-badge';
+
+    const dot = document.createElement('span');
+    dot.className = 'ping-dot' + (status === true ? ' online' : (status === false ? ' offline' : ''));
+
+    const label = document.createElement('span');
+    label.textContent = status === true ? 'ONLINE' : (status === false ? 'OFFLINE' : '...');
+
+    badge.append(dot, label);
+    return badge;
+}
+
+
 function renderRooms() {
     const container = document.getElementById('roomTabs');
     container.innerHTML = '';
@@ -82,13 +98,19 @@ function renderDecoders() {
         card.className = 'decoder-card' + (state.selectedDecoderIds.has(dec.id) ? ' selected' : '');
 
         const topWrap = document.createElement('div');
+        const headerRow = document.createElement('div');
+        headerRow.className = 'device-header-row';
+
         const roomEl = document.createElement('div');
         roomEl.className = 'device-room';
         roomEl.textContent = getLocationName(dec.locationId);
+
+        headerRow.append(roomEl, createPingBadge(dec.id));
+
         const nameEl = document.createElement('div');
         nameEl.className = 'device-name';
         nameEl.textContent = dec.title;
-        topWrap.append(roomEl, nameEl);
+        topWrap.append(headerRow, nameEl);
 
         const badgesRow = document.createElement('div');
         badgesRow.className = 'badges-row';
@@ -109,12 +131,18 @@ function renderDecoders() {
         const onBtn = document.createElement('button');
         onBtn.className = 'cec-btn on';
         onBtn.textContent = 'Display ON';
-        onBtn.onclick = (e) => { e.stopPropagation(); sendCEC(dec.id, 'cec power on', dec.title); };
+        onBtn.onclick = (e) => {
+            e.stopPropagation();
+            sendCEC(dec.id, dec.powerOnCommand || 'cec power on', dec.title);
+        };
 
         const offBtn = document.createElement('button');
         offBtn.className = 'cec-btn off';
         offBtn.textContent = 'Display OFF';
-        offBtn.onclick = (e) => { e.stopPropagation(); sendCEC(dec.id, 'cec power off', dec.title); };
+        offBtn.onclick = (e) => {
+            e.stopPropagation();
+            sendCEC(dec.id, dec.powerOffCommand || 'cec power off', dec.title);
+        };
         cecRow.append(onBtn, offBtn);
 
         card.append(topWrap, badgesRow, cecRow);
@@ -143,14 +171,19 @@ function renderEncoders() {
     state.encoders.forEach(enc => {
         const btn = document.createElement('button');
         btn.className = 'encoder-btn' + (activeEncoderId === enc.id ? ' active-for-selected' : '');
+        const headerRow = document.createElement('div');
+        headerRow.className = 'device-header-row';
         const roomEl = document.createElement('div');
         roomEl.className = 'device-room';
         roomEl.textContent = getLocationName(enc.locationId);
+        headerRow.append(roomEl, createPingBadge(enc.id));
+
         const nameEl = document.createElement('div');
         nameEl.className = 'device-name';
         nameEl.style.margin = '4px 0 0 0';
         nameEl.textContent = enc.title;
-        btn.append(roomEl, nameEl);
+        btn.append(headerRow, nameEl);
+
         btn.onclick = () => routeToSelected(enc.id, enc.title);
         container.appendChild(btn);
     });
@@ -169,6 +202,19 @@ function renderEncoders() {
     container.appendChild(blankBtn);
 }
 
+function selectAllVisibleDisplays() {
+    const visibleDecoders = state.decoders.filter(d =>
+        state.activeLocationId === 0 || d.locationId === state.activeLocationId
+    );
+    visibleDecoders.forEach(d => state.selectedDecoderIds.add(d.id));
+    render();
+}
+
+function clearSelectedDisplays() {
+    state.selectedDecoderIds.clear();
+    render();
+}
+
 function render() {
     renderRooms();
     renderStreamToggles();
@@ -177,5 +223,6 @@ function render() {
     renderEncoders();
 }
 
-loadStatus();
+loadStatus().then(() => loadPingStatus());
 setInterval(loadStatus, 10000);
+setInterval(loadPingStatus, 15000);

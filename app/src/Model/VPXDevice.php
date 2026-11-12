@@ -12,7 +12,6 @@ use SilverStripe\Forms\TextField;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\HasManyList;
 
-
 /**
  * @property string $Title
  * @property string $Mode
@@ -23,6 +22,8 @@ use SilverStripe\ORM\HasManyList;
  * @property string|null $MACAddress
  * @property string|null $MulticastIP
  * @property int|null $ChannelNumber
+ * @property string $PowerOnCommand
+ * @property string $PowerOffCommand
  * @property int $SortOrder
  *
  * @property int $LocationID
@@ -50,33 +51,35 @@ class VPXDevice extends DataObject
     private static string $default_sort = 'SortOrder ASC, Title ASC';
 
     private static array $db = [
-        'Title' => 'Varchar(100)',         // Friendly UI name (e.g., "Stage Left Camera" or "Lobby TV 1")
+        'Title' => 'Varchar(100)',
         'Mode' => "Enum('Encoder,Decoder', 'Decoder')",
-        'IPAddress' => 'Varchar(45)',      // Supports IPv4 or IPv6
-        'UDPPort' => 'Int',                // Default Aurora VPX UDP control port: 6970
-        'Hostname' => 'Varchar(100)',      // Unique VPX Hostname used in IPBaseT join commands
-        'HostID' => 'Varchar(50)',         // Optional Aurora Host ID / Virtual Channel ID
-        'MACAddress' => 'Varchar(17)',     // Helpful for hardware identification & DHCP reservations
-        'MulticastIP' => 'Varchar(45)',    // Optional multicast stream IP
-        'ChannelNumber' => 'Int',          // Optional virtual channel number (0-based)
+        'IPAddress' => 'Varchar(45)',
+        'UDPPort' => 'Int',
+        'Hostname' => 'Varchar(100)',
+        'HostID' => 'Varchar(50)',
+        'MACAddress' => 'Varchar(17)',
+        'MulticastIP' => 'Varchar(45)',
+        'ChannelNumber' => 'Int',
+        'PowerOnCommand' => 'Varchar(255)',
+        'PowerOffCommand' => 'Varchar(255)',
         'SortOrder' => 'Int',
     ];
 
     private static array $defaults = [
         'Mode' => self::MODE_DECODER,
         'UDPPort' => 6970,
+        'PowerOnCommand' => 'cec power on',
+        'PowerOffCommand' => 'cec power off',
     ];
 
     private static array $has_one = [
         'Location' => Location::class,
-        // Self-referential subscriptions (used when this device is acting as a Decoder)
         'SubscribedVideoEncoder' => self::class,
         'SubscribedAudioEncoder' => self::class,
         'SubscribedUSBEncoder' => self::class,
     ];
 
     private static array $has_many = [
-        // Reverse lookup: if this device is an Encoder, see which Decoders are tuned to its video
         'VideoSubscribers' => self::class . '.SubscribedVideoEncoder',
     ];
 
@@ -86,27 +89,29 @@ class VPXDevice extends DataObject
         'Mode' => true,
     ];
 
- private static array $summary_fields = [
-     'Title' => 'Device Name',
-     'Mode' => 'Mode',
-     'Location.Title' => 'Location',
-     'IPAddress' => 'IP Address',
-     'UDPPortDisplay' => 'UDP Port',
-     'Hostname' => 'VPX Hostname',
-     'SubscribedVideoEncoder.Title' => 'Active Video Source',
- ];
+    private static array $summary_fields = [
+        'Title' => 'Device Name',
+        'Mode' => 'Mode',
+        'Location.Title' => 'Location',
+        'IPAddress' => 'IP Address',
+        'UDPPortDisplay' => 'UDP Port',
+        'Hostname' => 'VPX Hostname',
+        'SubscribedVideoEncoder.Title' => 'Active Video Source',
+    ];
 
-
+    public function getUDPPortDisplay(): string
+    {
+        return (string) $this->UDPPort;
+    }
 
     public function getCMSFields(): FieldList
     {
-        // Filter dropdown options so Decoders only subscribe to Encoders
         $encoders = self::get()
             ->filter('Mode', self::MODE_ENCODER)
             ->exclude('ID', (int) $this->ID)
             ->map('ID', 'Title');
 
-        $fields = FieldList::create(
+        return FieldList::create(
             TabSet::create(
                 'Root',
                 Tab::create(
@@ -127,6 +132,14 @@ class VPXDevice extends DataObject
                         ->setDescription('Must match the exact Host Name configured on the VPX web interface')
                 ),
                 Tab::create(
+                    'DisplayControl',
+                    'Display Power (CEC / RS-232)',
+                    TextField::create('PowerOnCommand', 'Power ON Command')
+                        ->setDescription('Default: "cec power on" | RS-232 example: serial 1,9600,8,N,1 \\x02PON\\x03'),
+                    TextField::create('PowerOffCommand', 'Power OFF Command')
+                        ->setDescription('Default: "cec power off" | RS-232 example: serial 1,9600,8,N,1 \\x02POF\\x03')
+                ),
+                Tab::create(
                     'RoutingAndNetwork',
                     'Routing & Network Details',
                     DropdownField::create('SubscribedVideoEncoderID', 'Subscribed Video Source (Encoder)', $encoders)
@@ -135,17 +148,13 @@ class VPXDevice extends DataObject
                         ->setEmptyString('-- Follow Video / None --'),
                     DropdownField::create('SubscribedUSBEncoderID', 'Subscribed USB / KVM Source (Encoder)', $encoders)
                         ->setEmptyString('-- None --'),
-                    TextField::create('HostID', 'Aurora Host ID')
-                        ->setDescription('Optional Host ID if routing by ID instead of Hostname'),
+                    TextField::create('HostID', 'Aurora Host ID'),
                     NumericField::create('ChannelNumber', 'Virtual Channel Number'),
                     TextField::create('MulticastIP', 'Multicast Stream IP'),
                     TextField::create('MACAddress', 'MAC Address')
-                        ->setDescription('Format: AA:BB:CC:DD:EE:FF')
                 )
             )
         );
-
-        return $fields;
     }
 
     public function validate(): ValidationResult
@@ -164,7 +173,6 @@ class VPXDevice extends DataObject
             $result->addFieldError('Hostname', 'VPX Hostname is required for UDP join commands.');
         }
 
-        // Ensure IPAddress is unique across devices
         $duplicateIP = self::get()
             ->filter('IPAddress', $this->IPAddress)
             ->exclude('ID', (int) $this->ID)
@@ -177,18 +185,8 @@ class VPXDevice extends DataObject
         return $result;
     }
 
-    /**
-     * Helper method for your upcoming UDP controller to format a join command.
-     */
     public function buildJoinCommand(VPXDevice $encoder, string $streamType = 'all'): string
     {
-        // Standard Aurora IPBaseT UDP syntax: join <encoder_hostname> <stream_type>\r
         return sprintf("join %s %s\r", trim($encoder->Hostname), $streamType);
     }
-
-    public function getUDPPortDisplay(): string
-    {
-        return (string) $this->UDPPort;
-    }
-
 }

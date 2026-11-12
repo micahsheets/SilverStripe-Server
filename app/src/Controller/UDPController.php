@@ -7,18 +7,19 @@ use App\Model\RoutePreset;
 use App\Model\VPXDevice;
 use App\Security\VPXSecurityGuard;
 use App\Service\VPXUDPService;
-use RuntimeException;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Control\HTTPResponse_Exception;
 use SilverStripe\Security\SecurityToken;
+use Throwable;
 
 class UDPController extends Controller
 {
     private static string $url_segment = 'api/vpx';
 
-    private static array $allowed_actions = ['status', 'route', 'preset', 'command'];
+    private static array $allowed_actions = ['status', 'route', 'preset', 'command', 'ping'];
+
 
     private VPXUDPService $udpService;
 
@@ -56,12 +57,18 @@ class UDPController extends Controller
         ], VPXDevice::get()->filter('Mode', VPXDevice::MODE_ENCODER)->toArray());
 
         $decoders = array_map(fn(VPXDevice $d) => [
-            'id' => (int) $d->ID, 'title' => $d->Title, 'hostname' => $d->Hostname,
-            'ip' => $d->IPAddress, 'locationId' => (int) $d->LocationID,
+            'id' => (int) $d->ID,
+            'title' => $d->Title,
+            'hostname' => $d->Hostname,
+            'ip' => $d->IPAddress,
+            'locationId' => (int) $d->LocationID,
             'videoEncoderId' => (int) $d->SubscribedVideoEncoderID,
             'audioEncoderId' => (int) $d->SubscribedAudioEncoderID,
             'usbEncoderId' => (int) $d->SubscribedUSBEncoderID,
+            'powerOnCommand' => $d->PowerOnCommand ?: 'cec power on',
+            'powerOffCommand' => $d->PowerOffCommand ?: 'cec power off',
         ], VPXDevice::get()->filter('Mode', VPXDevice::MODE_DECODER)->toArray());
+
 
         $presets = array_map(fn(RoutePreset $p) => [
             'id' => (int) $p->ID, 'title' => $p->Title, 'description' => $p->Description,
@@ -83,22 +90,26 @@ class UDPController extends Controller
         if (!$request->isPOST()) {
             return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
         }
-        $data = $this->parseRequestData($request);
-        $decoder = VPXDevice::get()->byID((int) ($data['decoder_id'] ?? 0));
-        if (!$decoder) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Decoder not found.'], 404);
-        }
-        $encoderId = (int) ($data['encoder_id'] ?? 0);
-        $encoder = $encoderId > 0 ? VPXDevice::get()->byID($encoderId) : null;
-        if ($encoderId > 0 && !$encoder) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Encoder not found.'], 404);
-        }
 
         try {
+            $data = $this->parseRequestData($request);
+            $decoder = VPXDevice::get()->byID((int) ($data['decoder_id'] ?? 0));
+            if (!$decoder) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Decoder not found.'], 404);
+            }
+            $encoderId = (int) ($data['encoder_id'] ?? 0);
+            $encoder = $encoderId > 0 ? VPXDevice::get()->byID($encoderId) : null;
+            if ($encoderId > 0 && !$encoder) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Encoder not found.'], 404);
+            }
+
             $result = $this->udpService->route($decoder, $encoder, (string) ($data['stream_type'] ?? 'all'));
             return $this->jsonResponse(['success' => true, 'route' => $result]);
-        } catch (RuntimeException $e) {
-            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        } catch (Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
+            ], 500);
         }
     }
 
@@ -107,14 +118,22 @@ class UDPController extends Controller
         if (!$request->isPOST()) {
             return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
         }
-        $data = $this->parseRequestData($request);
-        $preset = RoutePreset::get()->byID((int) ($data['preset_id'] ?? 0));
-        if (!$preset) {
-            return $this->jsonResponse(['success' => false, 'error' => 'RoutePreset not found.'], 404);
+
+        try {
+            $data = $this->parseRequestData($request);
+            $preset = RoutePreset::get()->byID((int) ($data['preset_id'] ?? 0));
+            if (!$preset) {
+                return $this->jsonResponse(['success' => false, 'error' => 'RoutePreset not found.'], 404);
+            }
+            $outcome = $this->udpService->executePreset($preset);
+            $hasErrors = count($outcome['errors']) > 0;
+            return $this->jsonResponse(['success' => !$hasErrors, 'result' => $outcome], $hasErrors ? 207 : 200);
+        } catch (Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
+            ], 500);
         }
-        $outcome = $this->udpService->executePreset($preset);
-        $hasErrors = count($outcome['errors']) > 0;
-        return $this->jsonResponse(['success' => !$hasErrors, 'result' => $outcome], $hasErrors ? 207 : 200);
     }
 
     public function command(HTTPRequest $request): HTTPResponse
@@ -122,21 +141,25 @@ class UDPController extends Controller
         if (!$request->isPOST()) {
             return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
         }
-        $data = $this->parseRequestData($request);
-        $device = VPXDevice::get()->byID((int) ($data['device_id'] ?? 0));
-        $rawCommand = trim((string) ($data['command'] ?? ''));
-        if (!$device) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Device not found.'], 404);
-        }
-        if ($rawCommand === '') {
-            return $this->jsonResponse(['success' => false, 'error' => 'Command cannot be empty.'], 400);
-        }
 
         try {
+            $data = $this->parseRequestData($request);
+            $device = VPXDevice::get()->byID((int) ($data['device_id'] ?? 0));
+            $rawCommand = trim((string) ($data['command'] ?? ''));
+            if (!$device) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Device not found.'], 404);
+            }
+            if ($rawCommand === '') {
+                return $this->jsonResponse(['success' => false, 'error' => 'Command cannot be empty.'], 400);
+            }
+
             $this->udpService->sendCommand($device, $rawCommand);
             return $this->jsonResponse(['success' => true, 'device' => $device->Title, 'commandSent' => $rawCommand]);
-        } catch (RuntimeException $e) {
-            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        } catch (Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
+            ], 500);
         }
     }
 
@@ -156,4 +179,18 @@ class UDPController extends Controller
             ->setStatusCode($statusCode)
             ->addHeader('Content-Type', 'application/json');
     }
+
+     public function ping(HTTPRequest $request): HTTPResponse
+ {
+     $statuses = [];
+     foreach (VPXDevice::get() as $device) {
+         $statuses[(int) $device->ID] = $this->udpService->isDeviceOnline($device);
+     }
+
+     return $this->jsonResponse([
+         'success' => true,
+         'online' => $statuses,
+     ]);
+ }
+
 }
