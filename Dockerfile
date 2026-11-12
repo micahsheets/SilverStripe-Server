@@ -5,13 +5,15 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
+    libwebp-dev \
     libzip-dev \
     unzip \
     git \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j$(nproc) \
         intl \
         gd \
+        mysqli \
         pdo_mysql \
         bcmath \
         zip \
@@ -24,7 +26,6 @@ ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Tune OPcache and memory limits for Raspberry Pi production performance
 RUN { \
         echo 'opcache.enable=1'; \
         echo 'opcache.memory_consumption=128'; \
