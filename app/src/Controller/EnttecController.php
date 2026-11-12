@@ -95,7 +95,6 @@ class EnttecController extends Controller
             'model' => $d->Model ?: EnttecDevice::MODEL_SP1,
             'isMini' => $d->isMini(),
             'universes' => max(1, (int) $d->Universes),
-            'blackoutPlaylistId' => (int) $d->BlackoutPlaylistID,
             'locationId' => (int) $d->LocationID,
         ], EnttecDevice::get()->toArray());
 

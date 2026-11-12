@@ -211,7 +211,7 @@
                     <label for="cue-type-select">Capture Type</label>
                     <select id="cue-type-select">
                         <option value="0">Static Snapshot</option>
-                        <option value="1">Dynamic Recording (Max 60s)</option>
+                        <option value="1" id="opt-dynamic-capture">Dynamic Recording</option>
                     </select>
                 </div>
                 <div class="form-group">

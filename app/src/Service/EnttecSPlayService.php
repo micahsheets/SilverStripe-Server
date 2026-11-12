@@ -69,14 +69,14 @@ class EnttecSPlayService
         $rawPlaylists = $playlistRes['playlists'] ?? $playlistRes;
         $rawCues = $cueRes['cues'] ?? $cueRes;
         if (!is_array($rawPlaylists)) {
-            $rawPlaylists = [];
+            $rawPlaylists = array();
         }
         if (!is_array($rawCues)) {
-            $rawCues = [];
+            $rawCues = array();
         }
 
-        $cuesById = [];
-        $cuesByUuid = [];
+        $cuesById = array();
+        $cuesByUuid = array();
         foreach ($rawCues as $cue) {
             if (!is_array($cue) || !isset($cue['cue_id'])) {
                 continue;
@@ -88,8 +88,8 @@ class EnttecSPlayService
             }
         }
 
-        $blackoutId = (int) $device->BlackoutPlaylistID;
-        $merged = [];
+        $slotMetaMap = $device->getSlotMetadataMap();
+        $merged = array();
 
         foreach ($rawPlaylists as $pl) {
             if (!is_array($pl) || !isset($pl['playlist_id'])) {
@@ -102,20 +102,22 @@ class EnttecSPlayService
                 continue;
             }
 
-            $isBlackout = ($plId === $blackoutId) || (strcasecmp($name, 'Blackout') === 0);
+            $isBlackout = (strcasecmp($name, 'Blackout') === 0);
             $isEmpty = str_starts_with($name, '__EMPTY__');
 
             $matchedCue = null;
             if (!empty($pl['timeline']) && is_array($pl['timeline'])) {
                 foreach ($pl['timeline'] as $track) {
-                    if (!empty($track['cues'][0])) {
-                        $cueRef = $track['cues'][0];
-                        $refUuid = (string) ($cueRef['cue_uuid'] ?? '');
-                        $refId = (int) ($cueRef['cue_id'] ?? -1);
-                        if ($refUuid !== '' && isset($cuesByUuid[$refUuid])) {
-                            $matchedCue = $cuesByUuid[$refUuid];
-                        } elseif (isset($cuesById[$refId])) {
-                            $matchedCue = $cuesById[$refId];
+                    if (!empty($track['cues']) && is_array($track['cues'])) {
+                        $cueRef = reset($track['cues']);
+                        if (is_array($cueRef)) {
+                            $refUuid = (string) ($cueRef['cue_uuid'] ?? $cueRef['uuid'] ?? '');
+                            $refId = (int) ($cueRef['cue_id'] ?? -1);
+                            if ($refUuid !== '' && isset($cuesByUuid[$refUuid])) {
+                                $matchedCue = $cuesByUuid[$refUuid];
+                            } elseif ($refId >= 0 && isset($cuesById[$refId])) {
+                                $matchedCue = $cuesById[$refId];
+                            }
                         }
                         break;
                     }
@@ -124,6 +126,16 @@ class EnttecSPlayService
             if (!$matchedCue && isset($cuesById[$plId])) {
                 $matchedCue = $cuesById[$plId];
             }
+
+            $cachedMeta = $slotMetaMap[(string) $plId] ?? null;
+            $detectedSource = $cachedMeta['source']
+                ?? $matchedCue['config']['source']
+                ?? $matchedCue['universe_type']
+                ?? 0;
+
+            $detectedUniverses = $cachedMeta['universes']
+                ?? $matchedCue['config']['universes']
+                ?? array();
 
             $merged[] = [
                 'playlist_id' => $plId,
@@ -135,14 +147,15 @@ class EnttecSPlayService
                 'cue_id' => (int) ($matchedCue['cue_id'] ?? $plId),
                 'cue_uuid' => $matchedCue['cue_uuid'] ?? $matchedCue['uuid'] ?? ($pl['playlist_uuid'] ?? $plId),
                 'cue_type' => (int) ($matchedCue['type'] ?? 0),
-                'source' => (int) ($matchedCue['config']['source'] ?? 0),
-                'universes' => $matchedCue['config']['universes'] ?? [0],
+                'source' => (int) $detectedSource,
+                'universes' => is_array($detectedUniverses) ? $detectedUniverses : array(),
             ];
         }
 
         usort($merged, fn(array $a, array $b) => $a['playlist_id'] <=> $b['playlist_id']);
         return $merged;
     }
+
 
     public function playPlaylist(EnttecDevice $device, int $playlistId, ?int $playlistUuid = null, string $label = ''): array
     {
@@ -164,16 +177,37 @@ class EnttecSPlayService
 
     public function triggerBlackout(EnttecDevice $device): array
     {
-        $blackoutId = (int) $device->BlackoutPlaylistID;
+        $ip = trim((string) $device->IPAddress);
+        $port = (int) ($device->UDPPort ?: 5000);
+        $payload = trim((string) ($device->BlackoutCommand ?: 'stop'));
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            throw new RuntimeException("Invalid IP address configured for '{$device->Title}'.");
+        }
+
+        $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+        if ($socket === false) {
+            throw new RuntimeException('Unable to create UDP socket: ' . socket_strerror(socket_last_error()));
+        }
+
         try {
-            return $this->playPlaylist($device, $blackoutId, null, 'Blackout (Slot ' . $blackoutId . ')');
-        } catch (RuntimeException $e) {
-            $res = $this->sendApiCommand($device, ['command' => 7]);
-            RouteAuditLog::record('Command', "Lighting ({$device->Title}): Blackout Fallback (Stop All)", '{"command":7}', true);
-            return $res;
+            socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 1, 'usec' => 0]);
+            $bytesSent = @socket_sendto($socket, $payload, strlen($payload), 0, $ip, $port);
+            if ($bytesSent === false) {
+                $err = socket_strerror(socket_last_error($socket));
+                RouteAuditLog::record('Command', "Lighting ({$device->Title}): Blackout UDP Failed", $payload, false, $err);
+                throw new RuntimeException("Failed sending UDP '{$payload}' to {$ip}:{$port} - {$err}");
+            }
+
+            RouteAuditLog::record('Command', "Lighting ({$device->Title}): Blackout (UDP '{$payload}')", "{$ip}:{$port} -> {$payload}", true);
+            return ['result' => true, 'udpSent' => $payload];
+        } finally {
+            socket_close($socket);
         }
     }
-    public function recordStaticScene(
+
+
+     public function recordStaticScene(
         EnttecDevice $device,
         int $playlistId,
         int $playlistUuid,
@@ -183,20 +217,25 @@ class EnttecSPlayService
         int $sourceType,
         array $universes
     ): void {
-        if ($device->isMini() && ($playlistId < 1 || $playlistId > 15)) {
-            throw new RuntimeException('S-Play Mini only supports overwriting slots 1 through 15.');
+        if ($device->isMini() && ($playlistId < 0 || $playlistId > 15)) {
+            throw new RuntimeException('S-Play Mini only supports slots 0 through 15.');
         }
+        if (strcasecmp(trim($name), 'Blackout') === 0) {
+            throw new RuntimeException('Cannot overwrite the reserved Blackout playlist.');
+        }
+
+        $activeUniverses = array_values(array_map('intval', $universes));
 
         $this->sendApiCommand($device, [
             'command' => 13,
             'cue_id' => $cueId,
             'cue_uuid' => $cueUuid,
             'universe_type' => $sourceType,
-            'universes' => array_values(array_map('intval', $universes)),
+            'universes' => $activeUniverses,
             'followers' => new \stdClass(),
         ]);
 
-        usleep(200000);
+        usleep(250000);
 
         $this->sendApiCommand($device, [
             'command' => 16,
@@ -209,7 +248,7 @@ class EnttecSPlayService
                     'source' => $sourceType,
                     'ch_start' => 0,
                     'ch_stop' => 511,
-                    'universes' => array_values(array_map('intval', $universes)),
+                    'universes' => $activeUniverses,
                     'followers' => new \stdClass(),
                     'pixel_order' => 'RGB',
                     'color' => ['r' => 0, 'g' => 0, 'b' => 0, 'w' => 0, 'd' => 0, 'n' => 0],
@@ -218,24 +257,8 @@ class EnttecSPlayService
         ]);
 
         $this->writePlaylistSlot($device, $playlistId, $playlistUuid, $cueId, $cueUuid, $name, 0, 30000);
+        $device->saveSlotMetadata($playlistId, $sourceType, $activeUniverses);
         RouteAuditLog::record('Command', "Lighting ({$device->Title}): Recorded Static '{$name}' (Slot {$playlistId})", "Static Cue #{$cueId}", true);
-    }
-
-    public function armDynamicRecording(
-        EnttecDevice $device,
-        int $cueId,
-        int $cueUuid,
-        int $sourceType,
-        array $universes
-    ): array {
-        return $this->sendApiCommand($device, [
-            'command' => 14,
-            'cue_id' => $cueId,
-            'cue_uuid' => $cueUuid,
-            'live_preview' => false,
-            'universe_type' => $sourceType,
-            'universes' => array_values(array_map('intval', $universes)),
-        ]);
     }
 
     public function stopAndSaveDynamicScene(
@@ -249,38 +272,52 @@ class EnttecSPlayService
         array $universes,
         int $durationMs
     ): void {
-        if ($device->isMini() && ($playlistId < 1 || $playlistId > 15)) {
-            throw new RuntimeException('S-Play Mini only supports overwriting slots 1 through 15.');
+        if ($device->isMini() && ($playlistId < 0 || $playlistId > 15)) {
+            throw new RuntimeException('S-Play Mini only supports slots 0 through 15.');
+        }
+        if (strcasecmp(trim($name), 'Blackout') === 0) {
+            throw new RuntimeException('Cannot overwrite the reserved Blackout playlist.');
         }
 
-        $stopResponse = $this->sendApiCommand($device, ['command' => 15]);
-        $frames = $stopResponse['frames'] ?? $stopResponse['cue']['frames'] ?? $stopResponse['data']['frames'] ?? [];
+        $activeUniverses = array_values(array_map('intval', $universes));
 
-        usleep(200000);
+        $stopResponse = $this->sendApiCommand($device, ['command' => 15]);
+        $frames = $stopResponse['frames']
+            ?? $stopResponse['cue']['frames']
+            ?? $stopResponse['data']['frames']
+            ?? null;
+
+        usleep(250000);
         $safeDuration = max(1000, $durationMs);
+
+        $cuePayload = [
+            'cue_id' => $cueId,
+            'cue_uuid' => $cueUuid,
+            'name' => $name,
+            'type' => 1,
+            'duration' => $safeDuration,
+            'config' => [
+                'ch_start' => 0,
+                'ch_stop' => 511,
+                'source' => $sourceType,
+                'universes' => $activeUniverses,
+                'followers' => new \stdClass(),
+                'pixel_order' => 'RGB',
+                'color' => ['r' => 0, 'g' => 0, 'b' => 0, 'w' => 0, 'd' => 0, 'n' => 0],
+            ],
+        ];
+
+        if (is_array($frames) && count($frames) > 0) {
+            $cuePayload['frames'] = array_values($frames);
+        }
 
         $this->sendApiCommand($device, [
             'command' => 16,
-            'cue' => [
-                'cue_id' => $cueId,
-                'cue_uuid' => $cueUuid,
-                'name' => $name,
-                'type' => 1,
-                'duration' => $safeDuration,
-                'config' => [
-                    'ch_start' => 0,
-                    'ch_stop' => 511,
-                    'source' => $sourceType,
-                    'universes' => array_values(array_map('intval', $universes)),
-                    'followers' => new \stdClass(),
-                    'pixel_order' => 'RGB',
-                    'color' => ['r' => 0, 'g' => 0, 'b' => 0, 'w' => 0, 'd' => 0, 'n' => 0],
-                ],
-                'frames' => $frames,
-            ],
+            'cue' => $cuePayload,
         ]);
 
         $this->writePlaylistSlot($device, $playlistId, $playlistUuid, $cueId, $cueUuid, $name, 1, $safeDuration);
+        $device->saveSlotMetadata($playlistId, $sourceType, $activeUniverses);
         RouteAuditLog::record('Command', "Lighting ({$device->Title}): Recorded Dynamic '{$name}' (Slot {$playlistId})", "Dynamic Cue #{$cueId}", true);
     }
 
@@ -288,9 +325,6 @@ class EnttecSPlayService
     {
         if ($device->isMini()) {
             throw new RuntimeException('Deleting playlists is disabled on S-Play Mini hardware.');
-        }
-        if ($playlistId === (int) $device->BlackoutPlaylistID) {
-            throw new RuntimeException('Cannot delete the reserved Blackout playlist (Slot 0).');
         }
 
         $this->sendApiCommand($device, ['command' => 19, 'playlist_id' => $playlistId]);
@@ -303,6 +337,7 @@ class EnttecSPlayService
 
         RouteAuditLog::record('Command', "Lighting ({$device->Title}): Deleted Playlist Slot #{$playlistId}", "Delete #{$playlistId}", true);
     }
+
 
     private function writePlaylistSlot(
         EnttecDevice $device,
@@ -330,8 +365,8 @@ class EnttecSPlayService
                 'stop_trigger' => ['trigger_id' => -1],
                 'fade_in' => 0,
                 'fade_out' => 0,
-                'event' => ['events' => []],
-                'trigger' => ['triggers' => []],
+                'event' => ['events' => array()],
+                'trigger' => ['triggers' => array()],
                 'timeline' => [
                     'track1' => [
                         'intensity' => 100,

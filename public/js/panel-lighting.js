@@ -1,8 +1,8 @@
 (function () {
     let csrfToken = document.body.dataset.csrf || '';
-    let devices = [];
+    let devices = new Array();
     let activeDevice = null;
-    let playlists = [];
+    let playlists = new Array();
     let recordingState = null;
 
     const toastEl = document.getElementById('status-toast');
@@ -32,7 +32,13 @@
 
     async function apiGet(url) {
         const res = await fetch(url, { credentials: 'same-origin' });
-        const data = await res.json();
+        const rawText = await res.text();
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch (e) {
+            throw new Error(`Server returned invalid response (HTTP ${res.status}): ${rawText.slice(0, 140)}`);
+        }
         if (!res.ok || !data.success) {
             throw new Error(data.error || `HTTP ${res.status}`);
         }
@@ -49,18 +55,29 @@
             },
             body: JSON.stringify(payload),
         });
-        const data = await res.json();
+        const rawText = await res.text();
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch (e) {
+            throw new Error(`Server returned invalid response (HTTP ${res.status}): ${rawText.slice(0, 140)}`);
+        }
         if (!res.ok || !data.success) {
             throw new Error(data.error || `HTTP ${res.status}`);
         }
         return data;
     }
 
+    function isBlackoutPlaylist(pl) {
+        if (!pl) return false;
+        return Boolean(pl.isBlackout) || String(pl.name || '').trim().toLowerCase() === 'blackout';
+    }
+
     async function init() {
         try {
             const status = await apiGet('/api/enttec/status');
             if (status.csrfToken) csrfToken = status.csrfToken;
-            devices = status.devices || [];
+            devices = status.devices || new Array();
 
             if (devices.length === 0) {
                 scenesGridEl.innerHTML = '<div style="color:#fca5a5;">No Enttec S-Play devices configured. Add one in Admin &rarr; AV System.</div>';
@@ -68,12 +85,11 @@
             }
 
             renderDeviceTabs();
-            await selectDevice(devices[0]);
+            await selectDevice(devices.at(0));
         } catch (err) {
             scenesGridEl.innerHTML = `<div style="color:#fca5a5;">${err.message}</div>`;
         }
     }
-
     function renderDeviceTabs() {
         deviceTabsEl.innerHTML = '';
         devices.forEach((dev) => {
@@ -91,39 +107,55 @@
         renderDeviceTabs();
 
         deviceMetaEl.textContent = `Controller: ${dev.title} (${dev.ip}) • Model: S-Play ${dev.model} • Universes: ${dev.universes}`;
+
+        const dynamicOpt = cueTypeSelectEl.querySelector('option[value="1"]');
+        if (dynamicOpt) {
+            dynamicOpt.textContent = dev.isMini
+                ? 'Dynamic Recording (Max 60s on Mini)'
+                : 'Dynamic Recording (Unlimited)';
+        }
+
         modelHintEl.textContent = dev.isMini
-            ? 'S-Play Mini: Fixed 16 Slots (1–15 Editable, Slot 0 Blackout Locked, Delete Disabled)'
-            : 'S-Play SP1: Full Slot Creation & Deletion Enabled';
+            ? 'S-Play Mini: Fixed 16 Slots (Blackout Protected, 60s Dynamic Cap, Delete Disabled)'
+            : 'S-Play SP1: Full Slot Creation, Unlimited Dynamic Capture & Deletion Enabled';
 
         renderUniverseCheckboxes(dev.universes);
         await loadPlaylists();
     }
 
     function renderUniverseCheckboxes(count) {
+        const sourceType = parseInt(sourceTypeSelectEl.value, 10);
+        const startId = (sourceType === 2) ? 1 : 0;
+
         universeBoxEl.innerHTML = '';
         for (let i = 0; i < count; i++) {
+            const univId = startId + i;
             const label = document.createElement('label');
             label.className = 'universe-pill';
             const cb = document.createElement('input');
             cb.type = 'checkbox';
-            cb.value = String(i);
+            cb.value = String(univId);
             cb.checked = (i === 0);
             label.appendChild(cb);
-            label.appendChild(document.createTextNode(`Universe ${i + 1} (ID ${i})`));
+            label.appendChild(document.createTextNode(`Universe ${univId}`));
             universeBoxEl.appendChild(label);
         }
     }
 
     function getSelectedUniverses() {
         const checked = Array.from(universeBoxEl.querySelectorAll('input:checked')).map((el) => parseInt(el.value, 10));
-        return checked.length > 0 ? checked : [0];
+        if (checked.length > 0) {
+            return checked;
+        }
+        const sourceType = parseInt(sourceTypeSelectEl.value, 10);
+        return Array.of(sourceType === 2 ? 1 : 0);
     }
 
     async function loadPlaylists() {
         scenesGridEl.innerHTML = '<div style="color:var(--text-muted);">Loading scenes from S-Play...</div>';
         try {
             const data = await apiGet(`/api/enttec/playlists?device_id=${activeDevice.id}`);
-            playlists = data.playlists || [];
+            playlists = data.playlists || new Array();
             renderSceneCards();
             renderSlotDropdown();
         } catch (err) {
@@ -133,7 +165,7 @@
 
     function renderSceneCards() {
         scenesGridEl.innerHTML = '';
-        const visibleScenes = playlists.filter((p) => !p.isBlackout && !p.isEmpty);
+        const visibleScenes = playlists.filter((p) => !isBlackoutPlaylist(p) && !p.isEmpty);
 
         if (visibleScenes.length === 0) {
             scenesGridEl.innerHTML = '<div style="color:var(--text-muted);">No lighting scenes recorded yet. Click "Manage / Record Scenes" to capture one.</div>';
@@ -173,6 +205,7 @@
             showToast(err.message, true);
         }
     }
+
     function renderSlotDropdown() {
         slotSelectEl.innerHTML = '';
         const placeholder = document.createElement('option');
@@ -183,8 +216,11 @@
         slotSelectEl.appendChild(placeholder);
 
         if (activeDevice.isMini) {
-            for (let slotId = 1; slotId <= 15; slotId++) {
+            for (let slotId = 0; slotId <= 15; slotId++) {
                 const existing = playlists.find((p) => p.playlist_id === slotId);
+                if (isBlackoutPlaylist(existing)) {
+                    continue;
+                }
                 const opt = document.createElement('option');
                 opt.value = String(slotId);
                 opt.textContent = existing && !existing.isEmpty
@@ -196,7 +232,7 @@
             let maxId = 0;
             playlists.forEach((pl) => {
                 if (pl.playlist_id > maxId) maxId = pl.playlist_id;
-                if (pl.isBlackout) return;
+                if (isBlackoutPlaylist(pl)) return;
                 const opt = document.createElement('option');
                 opt.value = String(pl.playlist_id);
                 opt.textContent = pl.isEmpty
@@ -214,7 +250,6 @@
 
         updateRecorderControls();
     }
-
     function updateRecorderControls() {
         const slotVal = slotSelectEl.value;
         const hasSlot = slotVal !== '';
@@ -224,7 +259,7 @@
         const isDynamic = cueTypeSelectEl.value === '1';
         recordBtn.textContent = isDynamic ? 'Start Dynamic Recording' : 'Record Static Preset';
 
-        if (hasSlot && !activeDevice.isMini && existing && !existing.isEmpty) {
+        if (hasSlot && !activeDevice.isMini && existing && !existing.isEmpty && !isBlackoutPlaylist(existing)) {
             deleteBtn.style.display = 'inline-block';
         } else {
             deleteBtn.style.display = 'none';
@@ -239,14 +274,30 @@
             nameInputEl.value = existing.name;
             cueTypeSelectEl.value = String(existing.cue_type ?? 0);
             sourceTypeSelectEl.value = String(existing.source ?? 0);
+            renderUniverseCheckboxes(activeDevice.universes);
+
+            if (Array.isArray(existing.universes) && existing.universes.length > 0) {
+                const activeIds = existing.universes.filter((u) => u >= 0).map(String);
+                universeBoxEl.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+                    cb.checked = activeIds.includes(cb.value);
+                });
+            }
         } else {
             nameInputEl.value = '';
             cueTypeSelectEl.value = '0';
+            sourceTypeSelectEl.value = '0';
+            renderUniverseCheckboxes(activeDevice.universes);
         }
         updateRecorderControls();
     });
 
     cueTypeSelectEl.addEventListener('change', updateRecorderControls);
+
+    sourceTypeSelectEl.addEventListener('change', () => {
+        if (activeDevice) {
+            renderUniverseCheckboxes(activeDevice.universes);
+        }
+    });
 
     document.getElementById('btn-toggle-recorder').addEventListener('click', () => {
         drawerEl.classList.toggle('open');
@@ -255,13 +306,15 @@
     document.getElementById('btn-blackout').addEventListener('click', async () => {
         if (!activeDevice) return;
         scenesGridEl.querySelectorAll('.scene-card').forEach((c) => c.classList.remove('active'));
+
         try {
             await apiPost('/api/enttec/blackout', { device_id: activeDevice.id });
-            showToast('Blackout Activated (Slot 0)');
+            showToast('Blackout Activated (UDP stop)');
         } catch (err) {
             showToast(err.message, true);
         }
     });
+
 
     recordBtn.addEventListener('click', async () => {
         const slotVal = slotSelectEl.value;
@@ -272,8 +325,12 @@
 
         const playlistId = parseInt(slotVal, 10);
         const existing = playlists.find((p) => p.playlist_id === playlistId);
-        const nowEpoch = Math.floor(Date.now() / 1000);
+        if (isBlackoutPlaylist(existing)) {
+            showToast('Blackout playlist cannot be overwritten.', true);
+            return;
+        }
 
+        const nowEpoch = Math.floor(Date.now() / 1000);
         const cueId = existing && !existing.isEmpty ? existing.cue_id : playlistId;
         const cueUuid = existing && !existing.isEmpty ? existing.cue_uuid : nowEpoch;
         const playlistUuid = existing && !existing.isEmpty ? existing.playlist_uuid : nowEpoch;
@@ -321,9 +378,12 @@
                     timerEl.textContent = formatDuration(Date.now() - startTime);
                 }, 100);
 
-                const timeoutHandle = setTimeout(() => {
-                    stopDynamicCapture();
-                }, 60000);
+                const timeoutHandle = activeDevice.isMini
+                    ? setTimeout(() => {
+                        showToast('60-second S-Play Mini recording limit reached. Saving scene...');
+                        stopDynamicCapture();
+                    }, 60000)
+                    : null;
 
                 recordingState = {
                     playlistId, playlistUuid, cueId, cueUuid, name, sourceType, universes,
@@ -341,7 +401,9 @@
         recordingState = null;
 
         clearInterval(state.timerInterval);
-        clearTimeout(state.timeoutHandle);
+        if (state.timeoutHandle !== null) {
+            clearTimeout(state.timeoutHandle);
+        }
 
         stopBtn.disabled = true;
         const durationMs = Date.now() - state.startTime;
@@ -377,7 +439,7 @@
         if (activeDevice.isMini) return;
         const slotId = parseInt(slotSelectEl.value, 10);
         const existing = playlists.find((p) => p.playlist_id === slotId);
-        if (!existing) return;
+        if (!existing || isBlackoutPlaylist(existing)) return;
 
         if (!window.confirm(`Delete playlist "${existing.name}" (Slot ${slotId}) from ${activeDevice.title}?`)) {
             return;
