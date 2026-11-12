@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      SS_ENVIRONMENT_TYPE: live
+      SS_DATABASE_SERVER: 127.0.0.1
+      SS_BASE_URL: http://localhost
+    depends_on:
+      - database
+
+  database:
+    image: mariadb:10.11
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3306:3306"
+    command: --innodb-buffer-pool-size=128M --max-connections=50

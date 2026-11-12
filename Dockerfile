@@ -1,6 +1,5 @@
 FROM php:8.3-apache
 
-# Install system libraries required by Silverstripe extensions
 RUN apt-get update && apt-get install -y \
     libicu-dev \
     libpng-dev \
@@ -21,10 +20,19 @@ RUN apt-get update && apt-get install -y \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Apache DocumentRoot to Silverstripe's /public folder
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Copy Composer
+# Tune OPcache and memory limits for Raspberry Pi production performance
+RUN { \
+        echo 'opcache.enable=1'; \
+        echo 'opcache.memory_consumption=128'; \
+        echo 'opcache.max_accelerated_files=10000'; \
+        echo 'opcache.validate_timestamps=0'; \
+        echo 'memory_limit=256M'; \
+        echo 'upload_max_filesize=20M'; \
+        echo 'post_max_size=20M'; \
+    } > /usr/local/etc/php/conf.d/silverstripe-prod.ini
+
 COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
