@@ -7,6 +7,7 @@ use App\Model\RouteAuditLog;
 use App\Model\RoutePreset;
 use App\Model\VPXDevice;
 use SilverStripe\Admin\ModelAdmin;
+use App\Model\PanelSettings;
 
 class AVSystemAdmin extends ModelAdmin
 {
@@ -21,5 +22,6 @@ class AVSystemAdmin extends ModelAdmin
         RoutePreset::class,
         Location::class,
         RouteAuditLog::class,
+        PanelSettings::class
     ];
 }

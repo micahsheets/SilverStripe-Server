@@ -1,6 +1,0 @@
----
-Name: avbranding
----
-SilverStripe\SiteConfig\SiteConfig:
-  extensions:
-    - App\Extension\AVBrandingExtension
