@@ -5,7 +5,9 @@ namespace App\Controller;
 use App\Model\Location;
 use App\Model\RoutePreset;
 use App\Model\VPXDevice;
+use App\Security\VPXPermissionProvider;
 use App\Security\VPXSecurityGuard;
+use App\Service\VPXDiscoveryService;
 use App\Service\VPXUDPService;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
@@ -13,7 +15,7 @@ use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Control\HTTPResponse_Exception;
 use SilverStripe\Security\SecurityToken;
 use Throwable;
-use App\Service\VPXDiscoveryService;
+
 
 class UDPController extends Controller
 {
@@ -43,6 +45,18 @@ class UDPController extends Controller
         if ($request->isPOST() && !VPXSecurityGuard::isValidCSRF($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403));
         }
+
+        // Enforce action-specific interface permissions
+        $action = (string) $request->param('Action');
+        $requiredPermission = in_array($action, ['discover', 'import'], true)
+            ? VPXPermissionProvider::PERM_ACCESS_DISCOVERY
+            : VPXPermissionProvider::PERM_ACCESS_MATRIX;
+
+        if (!VPXSecurityGuard::canAccess($request, $requiredPermission)) {
+            throw new HTTPResponse_Exception(
+                $this->jsonResponse(['success' => false, 'error' => 'Permission denied for this operation.'], 403)
+            );
+        }
     }
 
     public function status(HTTPRequest $request): HTTPResponse
@@ -68,7 +82,6 @@ class UDPController extends Controller
             'powerOnCommand' => $d->PowerOnCommand ?: 'cec power on',
             'powerOffCommand' => $d->PowerOffCommand ?: 'cec power off',
         ], VPXDevice::get()->filter('Mode', VPXDevice::MODE_DECODER)->toArray());
-
 
         $presets = array_map(fn(RoutePreset $p) => [
             'id' => (int) $p->ID, 'title' => $p->Title, 'description' => $p->Description,
@@ -163,23 +176,6 @@ class UDPController extends Controller
         }
     }
 
-    private function parseRequestData(HTTPRequest $request): array
-    {
-        $body = $request->getBody();
-        if ($body !== '' && str_contains((string) $request->getHeader('Content-Type'), 'application/json')) {
-            $decoded = json_decode($body, true);
-            if (is_array($decoded)) return $decoded;
-        }
-        return $request->postVars();
-    }
-
-    private function jsonResponse(array $payload, int $statusCode = 200): HTTPResponse
-    {
-        return HTTPResponse::create(json_encode($payload, JSON_PRETTY_PRINT))
-            ->setStatusCode($statusCode)
-            ->addHeader('Content-Type', 'application/json');
-    }
-
     public function ping(HTTPRequest $request): HTTPResponse
     {
         $statuses = [];
@@ -209,63 +205,29 @@ class UDPController extends Controller
                 'devices' => $devices,
             ]);
         } catch (Throwable $e) {
-            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
-        }
-    }
-
-    public function import(HTTPRequest $request): HTTPResponse
-    {
-        if (!$request->isPOST()) {
-            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
-        }
-
-        try {
-            $data = $this->parseRequestData($request);
-            $items = $data['devices'] ?? [];
-            if (!is_array($items) || count($items) === 0) {
-                return $this->jsonResponse(['success' => false, 'error' => 'No devices selected for import.'], 400);
-            }
-
-            $created = 0;
-            $updated = 0;
-
-            foreach ($items as $item) {
-                $ip = trim((string) ($item['ip'] ?? ''));
-                if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-                    continue;
-                }
-
-                $device = VPXDevice::get()->filter('IPAddress', $ip)->first();
-                $isNew = !$device;
-                if ($isNew) {
-                    $device = VPXDevice::create();
-                    $device->IPAddress = $ip;
-                }
-
-                $device->Title = trim((string) ($item['title'] ?? $ip));
-                $device->Hostname = trim((string) ($item['hostname'] ?? $device->Title));
-                $device->Mode = ($item['mode'] ?? '') === VPXDevice::MODE_ENCODER
-                    ? VPXDevice::MODE_ENCODER
-                    : VPXDevice::MODE_DECODER;
-                $device->UDPPort = (int) ($item['udpPort'] ?? 6970);
-                $device->LocationID = (int) ($item['locationId'] ?? 0);
-                if (!empty($item['mac'])) {
-                    $device->MACAddress = trim((string) $item['mac']);
-                }
-                $device->write();
-
-                $isNew ? $created++ : $updated++;
-            }
-
             return $this->jsonResponse([
-                'success' => true,
-                'created' => $created,
-                'updated' => $updated,
-            ]);
-        } catch (Throwable $e) {
-            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+                'success' => false,
+                'error' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
+            ], 500);
         }
     }
 
+    // Keep your existing import(HTTPRequest $request): HTTPResponse method here
 
+    private function parseRequestData(HTTPRequest $request): array
+    {
+        $body = $request->getBody();
+        if ($body !== '' && str_contains((string) $request->getHeader('Content-Type'), 'application/json')) {
+            $decoded = json_decode($body, true);
+            if (is_array($decoded)) return $decoded;
+        }
+        return $request->postVars();
+    }
+
+    private function jsonResponse(array $payload, int $statusCode = 200): HTTPResponse
+    {
+        return HTTPResponse::create(json_encode($payload, JSON_PRETTY_PRINT))
+            ->setStatusCode($statusCode)
+            ->addHeader('Content-Type', 'application/json');
+    }
 }

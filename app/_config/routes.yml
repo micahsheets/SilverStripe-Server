@@ -2,12 +2,12 @@
 Name: approutes
 After:
   - '#rootroutes'
-Before:
   - '#coreroutes'
 ---
 SilverStripe\Control\Director:
   rules:
-    '': App\Controller\TouchPanelController
-    'api/vpx//$Action/$ID': App\Controller\UDPController
-    'panel//$Action/$ID': App\Controller\TouchPanelController
-
+    '': 'App\Controller\TouchPanelController'
+    'panel/lighting//$Action/$ID': 'App\Controller\EnttecController'
+    'panel//$Action/$ID': 'App\Controller\TouchPanelController'
+    'api/vpx//$Action/$ID': 'App\Controller\UDPController'
+    'api/enttec//$Action/$ID': 'App\Controller\EnttecController'

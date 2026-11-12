@@ -2,14 +2,25 @@
 
 namespace App\Security;
 
+use App\Model\PanelSettings;
+use App\Model\RouteAuditLog;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Core\Environment;
+use SilverStripe\Security\Member;
 use SilverStripe\Security\Permission;
+use SilverStripe\Security\Security;
 use SilverStripe\Security\SecurityToken;
 
 class VPXSecurityGuard
 {
     public const SESSION_KEY = 'VPXPanelUnlocked';
+    public const SESSION_AUTH_TYPE = 'VPXAuthType';       // 'cms' | 'member' | 'basic' | 'master'
+    public const SESSION_MEMBER_ID = 'VPXAuthMemberID';
+
+    public const AUTH_TYPE_CMS = 'cms';
+    public const AUTH_TYPE_MEMBER = 'member';
+    public const AUTH_TYPE_BASIC = 'basic';
+    public const AUTH_TYPE_MASTER = 'master';
 
     public static function isIPAllowed(HTTPRequest $request): bool
     {
@@ -32,43 +43,219 @@ class VPXSecurityGuard
         return false;
     }
 
+    /**
+     * Checks whether the current session is unlocked at all (regardless of specific page permission).
+     */
     public static function isAuthenticated(HTTPRequest $request): bool
     {
-        $rawRequire = Environment::getEnv('VPX_REQUIRE_CMS_OR_PIN');
-        $requireAuth = $rawRequire === false ? true : filter_var($rawRequire, FILTER_VALIDATE_BOOLEAN);
-        if (!$requireAuth) {
+        if (!self::isAuthRequired()) {
             return true;
         }
 
-        // 1. Allow any logged-in CMS admin or operator
-        if (Permission::check('CMS_ACCESS_App\Admin\AVSystemAdmin') || Permission::check('ADMIN')) {
+        // 1. Active CMS login
+        if (Security::getCurrentUser()) {
             return true;
         }
 
-        // 2. Allow touch panels unlocked via PIN in the current session
-        $pin = (string) Environment::getEnv('VPX_PANEL_PIN');
-        if ($pin !== '' && $request->getSession()->get(self::SESSION_KEY) === hash('sha256', $pin)) {
+        $session = $request->getSession();
+        $authType = (string) $session->get(self::SESSION_AUTH_TYPE);
+
+        // 2. Individual Member PIN session
+        if ($authType === self::AUTH_TYPE_MEMBER) {
+            $memberId = (int) $session->get(self::SESSION_MEMBER_ID);
+            return $memberId > 0 && Member::get()->byID($memberId) !== null;
+        }
+
+        // 3. Basic Shared Admin PIN session
+        if ($authType === self::AUTH_TYPE_BASIC) {
+            $settings = PanelSettings::current();
+            return !empty($settings->BasicPanelPIN)
+                && $session->get(self::SESSION_KEY) === hash('sha256', 'basic:' . $settings->BasicPanelPIN);
+        }
+
+        // 4. Master .env Fallback PIN session
+        if ($authType === self::AUTH_TYPE_MASTER) {
+            $pin = (string) Environment::getEnv('VPX_PANEL_PIN');
+            return $pin !== '' && $session->get(self::SESSION_KEY) === hash('sha256', 'master:' . $pin);
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if the current authenticated user/session has permission to access a specific interface
+     * (e.g., VPXPermissionProvider::PERM_ACCESS_MATRIX, PERM_ACCESS_AUDIO_DTX, PERM_ACCESS_LIGHTING_ENTTEC).
+     */
+    public static function canAccess(HTTPRequest $request, string $permissionCode): bool
+    {
+        if (!self::isAuthRequired()) {
+            return true;
+        }
+
+        if (!self::isAuthenticated($request)) {
+            return false;
+        }
+
+        // 1. Active CMS user: check Silverstripe group permissions directly
+        $cmsMember = Security::getCurrentUser();
+        if ($cmsMember) {
+            return Permission::checkMember($cmsMember, $permissionCode)
+                || Permission::checkMember($cmsMember, 'ADMIN');
+        }
+
+        $session = $request->getSession();
+        $authType = (string) $session->get(self::SESSION_AUTH_TYPE);
+
+        // 2. Master .env fallback PIN: full administrative override
+        if ($authType === self::AUTH_TYPE_MASTER) {
+            return true;
+        }
+
+        // 3. Individual Member PIN: evaluate Silverstripe group permissions for that Member
+        if ($authType === self::AUTH_TYPE_MEMBER) {
+            $member = self::getAuthenticatedMember($request);
+            if (!$member) {
+                return false;
+            }
+            return Permission::checkMember($member, $permissionCode)
+                || Permission::checkMember($member, 'ADMIN');
+        }
+
+        // 4. Basic Shared Admin PIN: check allowed interfaces configured in PanelSettings
+        if ($authType === self::AUTH_TYPE_BASIC) {
+            return PanelSettings::current()->basicPINAllows($permissionCode);
+        }
+
+        return false;
+    }
+
+    /**
+     * Evaluates a submitted keypad PIN against the 3-tier hierarchy:
+     *   Tier 1: Individual Member PanelPIN (from /admin/security)
+     *   Tier 2: Basic Shared PanelSettings PIN (from /admin/av-system)
+     *   Tier 3: Emergency Master .env VPX_PANEL_PIN
+     */
+    public static function verifyPIN(HTTPRequest $request, string $submittedPin): bool
+    {
+        $pin = trim($submittedPin);
+        if ($pin === '') {
+            return false;
+        }
+
+        $session = $request->getSession();
+
+        // Tier 1: Check individual Member PINs
+        foreach (Member::get() as $member) {
+            $storedHash = (string) $member->getField('PanelPIN');
+            if ($storedHash !== '' && password_verify($pin, $storedHash)) {
+                $session->set(self::SESSION_AUTH_TYPE, self::AUTH_TYPE_MEMBER);
+                $session->set(self::SESSION_MEMBER_ID, (int) $member->ID);
+                $session->set(self::SESSION_KEY, hash('sha256', 'member:' . $member->ID));
+                return true;
+            }
+        }
+
+
+
+        // Tier 2: Check Basic Shared PIN in PanelSettings
+        $settings = PanelSettings::current();
+        if ($settings->verifyBasicPIN($pin)) {
+            $session->set(self::SESSION_AUTH_TYPE, self::AUTH_TYPE_BASIC);
+            $session->clear(self::SESSION_MEMBER_ID);
+            $session->set(self::SESSION_KEY, hash('sha256', 'basic:' . $settings->BasicPanelPIN));
+            return true;
+        }
+
+        // Tier 3: Emergency Master .env Fallback PIN
+        $masterPin = (string) Environment::getEnv('VPX_PANEL_PIN');
+        if ($masterPin !== '' && hash_equals($masterPin, $pin)) {
+            $session->set(self::SESSION_AUTH_TYPE, self::AUTH_TYPE_MASTER);
+            $session->clear(self::SESSION_MEMBER_ID);
+            $session->set(self::SESSION_KEY, hash('sha256', 'master:' . $masterPin));
+
+            // Record an audit entry whenever the emergency master .env PIN is used
+            if (class_exists(RouteAuditLog::class)) {
+                $log = RouteAuditLog::create([
+                    'ActionType' => 'Command',
+                    'Summary' => 'Touch panel unlocked using emergency .env Master PIN',
+                    'CommandSent' => 'AUTH_MASTER_PIN',
+                    'Actor' => 'Master .env PIN',
+                    'ClientIP' => (string) $request->getIP(),
+                    'Success' => true,
+                ]);
+                $log->write();
+            }
+
             return true;
         }
 
         return false;
     }
 
-    public static function verifyPIN(HTTPRequest $request, string $submittedPin): bool
+    /**
+     * Clears touch panel PIN authentication from the current session.
+     */
+    public static function lock(HTTPRequest $request): void
     {
-        $expectedPin = (string) Environment::getEnv('VPX_PANEL_PIN');
-        if ($expectedPin === '' || !hash_equals($expectedPin, trim($submittedPin))) {
-            return false;
+        $session = $request->getSession();
+        $session->clear(self::SESSION_KEY);
+        $session->clear(self::SESSION_AUTH_TYPE);
+        $session->clear(self::SESSION_MEMBER_ID);
+        $session->save($request);
+    }
+
+    /**
+     * Returns the Member associated with the current session (via CMS login or Member PIN), or null.
+     */
+    public static function getAuthenticatedMember(HTTPRequest $request): ?Member
+    {
+        $cmsMember = Security::getCurrentUser();
+        if ($cmsMember) {
+            return $cmsMember;
         }
 
-        $request->getSession()->set(self::SESSION_KEY, hash('sha256', $expectedPin));
-        return true;
+        $session = $request->getSession();
+        if ($session->get(self::SESSION_AUTH_TYPE) === self::AUTH_TYPE_MEMBER) {
+            $memberId = (int) $session->get(self::SESSION_MEMBER_ID);
+            if ($memberId > 0) {
+                return Member::get()->byID($memberId);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Returns a human-readable actor label for RouteAuditLog entries (e.g., "Jane Doe", "Basic Panel PIN", "Master .env PIN").
+     */
+    public static function getActorLabel(HTTPRequest $request): string
+    {
+        $member = self::getAuthenticatedMember($request);
+        if ($member) {
+            return trim($member->getTitle()) ?: ('Member #' . $member->ID);
+        }
+
+        $authType = (string) $request->getSession()->get(self::SESSION_AUTH_TYPE);
+        if ($authType === self::AUTH_TYPE_BASIC) {
+            return 'Basic Panel PIN';
+        }
+        if ($authType === self::AUTH_TYPE_MASTER) {
+            return 'Master .env PIN';
+        }
+
+        return 'Unauthenticated / Open Panel';
     }
 
     public static function isValidCSRF(HTTPRequest $request): bool
     {
         $token = (string) ($request->getHeader('X-CSRF-TOKEN') ?: $request->postVar('SecurityID'));
         return $token !== '' && hash_equals(SecurityToken::inst()->getValue(), $token);
+    }
+
+    private static function isAuthRequired(): bool
+    {
+        $rawRequire = Environment::getEnv('VPX_REQUIRE_CMS_OR_PIN');
+        return $rawRequire === false ? true : filter_var($rawRequire, FILTER_VALIDATE_BOOLEAN);
     }
 
     private static function ipInRange(string $ip, string $cidr): bool

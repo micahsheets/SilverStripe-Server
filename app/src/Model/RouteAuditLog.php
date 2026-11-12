@@ -2,13 +2,13 @@
 
 namespace App\Model;
 
+use App\Security\VPXSecurityGuard;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Core\Environment;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DB;
 use SilverStripe\ORM\FieldType\DBDatetime;
-use SilverStripe\Security\Security;
 
 /**
  * @property string $ActionType
@@ -77,12 +77,13 @@ class RouteAuditLog extends DataObject
         ?VPXDevice $source = null,
         ?RoutePreset $preset = null
     ): self {
-        $member = Security::getCurrentUser();
-        $actor = $member ? ($member->Email ?: $member->FirstName) : 'Touch Panel (PIN)';
-
+        $actor = 'CLI / System';
         $ip = '';
+
         if (Injector::inst()->has(HTTPRequest::class)) {
-            $ip = (string) Injector::inst()->get(HTTPRequest::class)->getIP();
+            $request = Injector::inst()->get(HTTPRequest::class);
+            $actor = VPXSecurityGuard::getActorLabel($request);
+            $ip = (string) $request->getIP();
         }
 
         $log = self::create([
