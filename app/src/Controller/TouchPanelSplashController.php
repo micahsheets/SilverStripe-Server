@@ -11,9 +11,16 @@ use SilverStripe\ORM\FieldType\DBHTMLText;
 
 class TouchPanelSplashController extends Controller
 {
+    private static string $url_segment = 'panel/splash';
+
     private static array $allowed_actions = [
         'index',
     ];
+
+    public function Link($action = null): string
+    {
+        return self::join_links('panel/splash', $action);
+    }
 
     protected function init(): void
     {
@@ -38,7 +45,10 @@ class TouchPanelSplashController extends Controller
             'SiteConfig' => $branding,
             'NextRoute' => $nextRoute,
             'IsAuthenticated' => $isAuthenticated,
-        ])->renderWith(['App/Controller/TouchPanelSplash']);
+        ])->renderWith([
+            'App\\Controller\\TouchPanelSplash',
+            'Page',
+        ]);
     }
 
     protected function getFirstPermittedUrl(HTTPRequest $request): ?string
@@ -51,7 +61,7 @@ class TouchPanelSplashController extends Controller
         }
 
         if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_MATRIX)) {
-            return '/panel';
+            return '/panel/video';
         }
         if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX)) {
             return '/panel/audio';
@@ -59,11 +69,14 @@ class TouchPanelSplashController extends Controller
         if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC)) {
             return '/panel/lighting';
         }
-        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
-            return '/panel/discover';
+        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_CAMERA)) {
+            return '/panel/camera';
         }
         if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_RODECASTER)) {
             return '/panel/rodecaster';
+        }
+        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+            return '/panel/discover';
         }
 
         return null;

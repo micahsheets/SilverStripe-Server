@@ -34,7 +34,7 @@ class SystemModule extends DataObject
         parent::requireDefaultRecords();
 
         $defaultModules = array(
-            array('Video Matrix', '/panel', VPXPermissionProvider::PERM_ACCESS_MATRIX, 10),
+            array('Video Matrix', '/panel/video', VPXPermissionProvider::PERM_ACCESS_MATRIX, 10),
             array('Audio DSP', '/panel/audio', VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX, 20),
             array('Lighting', '/panel/lighting', VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC, 30),
             array('Cameras', '/panel/camera', VPXPermissionProvider::PERM_ACCESS_CAMERA, 40),

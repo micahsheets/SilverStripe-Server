@@ -21,7 +21,7 @@ class VPXMatrixAdmin extends ModelAdmin
 
     public function canView($member = null)
     {
-        if (!PanelSettings::isModuleRouteEnabled('/panel')) {
+        if (!PanelSettings::isModuleRouteEnabled('/panel/video')) {
             return false;
         }
 

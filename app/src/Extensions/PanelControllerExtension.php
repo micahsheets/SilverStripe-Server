@@ -2,13 +2,13 @@
 
 namespace App\Extension;
 
-use SilverStripe\Core\Extension;
+use App\Model\PanelSettings;
+use App\Security\VPXPermissionProvider;
+use App\Security\VPXSecurityGuard;
 use SilverStripe\Control\Controller;
+use SilverStripe\Core\Extension;
 use SilverStripe\Model\ArrayData;
 use SilverStripe\Model\List\ArrayList;
-use App\Model\PanelSettings;
-use App\Security\VPXSecurityGuard;
-use App\Security\VPXPermissionProvider;
 
 class PanelControllerExtension extends Extension
 {
@@ -28,16 +28,11 @@ class PanelControllerExtension extends Extension
         }
 
         $currentPath = trim($request->getURL(), '/');
-        $matrixEnabled = false;
 
         foreach ($activeModules as $mod) {
-            if (trim((string) $mod->Route, '/') === 'panel') {
-                $matrixEnabled = true;
-            }
-
             if (VPXSecurityGuard::canAccess($request, $mod->PermissionCode)) {
                 $modPath = trim((string) $mod->Route, '/');
-                $isActive = ($currentPath === $modPath);
+                $isActive = ($currentPath === $modPath || str_starts_with($currentPath, $modPath . '/'));
 
                 $nav->push(ArrayData::create([
                     'Title' => $mod->Title,
@@ -48,6 +43,12 @@ class PanelControllerExtension extends Extension
         }
 
         return $nav;
+    }
+
+    public function getDefaultPanelRoute(): string
+    {
+        $first = $this->getPanelNavigation()->first();
+        return $first ? (string) $first->Route : '/panel/splash';
     }
 
     public function getCanAccessDiscovery(): bool
@@ -74,5 +75,4 @@ class PanelControllerExtension extends Extension
     {
         return PanelSettings::current();
     }
-
 }

@@ -38,7 +38,7 @@ class VPXPermissionProvider implements PermissionProvider
             ],
             self::PERM_ACCESS_CAMERA => [
                 'name' => 'Access VISCA Camera Control',
-                'category' => 'AV Touch Panel',
+                'category' => 'AV & Control System',
                 'help' => 'Allows controlling PTZ cameras and recalling/saving presets.',
             ],
             self::PERM_ACCESS_RODECASTER => [

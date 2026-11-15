@@ -61,7 +61,9 @@
             <% loop $PanelNavigation %>
                 <a href="$Route" class="nav-pill <% if $IsActive %>active<% end_if %>">$Title</a>
             <% end_loop %>
-            <a href="/panel/video" class="nav-pill active">&#8592; Back to Matrix</a>
+            <% if $PanelNavigation %>
+                <a href="$DefaultPanelRoute" class="nav-pill">&#8592; Back to Panel</a>
+            <% end_if %>
             <a href="/panel/lock" class="nav-pill lock-btn">Lock Panel</a>
         </nav>
     </header>
