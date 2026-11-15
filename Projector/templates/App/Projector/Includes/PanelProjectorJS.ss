@@ -1,3 +1,4 @@
+<script>
 (function () {
     const csrfToken = document.body.dataset.csrf || '';
     const dot = document.getElementById('connectionDot');
@@ -56,3 +57,4 @@
         sendProjectorCommand(deviceId, command, label);
     });
 })();
+</script>

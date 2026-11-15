@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Controller;
+namespace App\Projector\Controller;
 
 use App\Contract\TouchPanelModuleInterface;
 use App\Model\PanelSettings;
-use App\Model\ProjectorDevice;
+use App\Projector\Model\ProjectorDevice;
 use App\Traits\TouchPanelControllerTrait;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
@@ -59,7 +59,7 @@ class ProjectorController extends Controller implements TouchPanelModuleInterfac
             'CSRFToken' => SecurityToken::inst()->getValue(),
             'Projectors' => ProjectorDevice::get()->filter('Active', 1),
         ])->renderWith([
-            'App\\Controller\\TouchPanelProjector',
+            'App\\Projector\\Controller\\TouchPanelProjector',
             'Page',
         ]);
     }

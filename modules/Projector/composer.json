@@ -1,7 +1,0 @@
-{
-  "name": "PANEL/module-projector",
-  "type": "silverstripe-vendormodule",
-  "require": {
-    "silverstripe/framework": "^4 || ^5"
-  }
-}

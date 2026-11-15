@@ -17,6 +17,9 @@
         "phpunit/phpunit": "^11.3"
     },
     "extra": {
+        "expose": [
+            "Projector/client"
+        ],
         "project-files-installed": [
             ".htaccess",
             "app/.htaccess",

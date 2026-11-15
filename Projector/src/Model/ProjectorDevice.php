@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Model;
+namespace App\Projector\Model;
 
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\NumericField;

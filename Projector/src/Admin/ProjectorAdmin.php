@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Admin;
+namespace App\Projector\Admin;
 
-use App\Model\ProjectorDevice;
+use App\Projector\Model\ProjectorDevice;
 use SilverStripe\Admin\ModelAdmin;
 
 class ProjectorAdmin extends ModelAdmin

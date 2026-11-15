@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Extension;
+namespace App\Projector\Extensions;
 
-use App\Model\ProjectorDevice;
+use App\Projector\Model\ProjectorDevice;
 use SilverStripe\Core\Extension;
 
 class ProjectorAdminExtension extends Extension

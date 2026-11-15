@@ -87,6 +87,6 @@
 </div>
 
 <div id="status-toast" class="status-toast"></div>
-<script src="/js/panel-projector.js?v=1"></script>
+<% include App\Projector\Includes\PanelProjectorJS %>
 </body>
 </html>
