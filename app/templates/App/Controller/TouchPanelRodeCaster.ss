@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title><% if $PanelSettings.PanelTitle \%>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - RØDECaster Video</title>
+    <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - RØDECaster Video</title>
     <link rel="stylesheet" href="/css/touch-panel.css?v=29">
 <% if $PanelSettings.PanelBackground %>
 <style>
@@ -74,14 +74,14 @@
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(36).URL" alt="Logo">
             <% end_if %>
             <div>
-                <div class="brand-title"><% if $PanelSettings.PanelTitle \%>$PanelSettings.PanelTitle<% end_if %></div>
+                <div class="brand-title"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% end_if %></div>
                 <div class="brand-sub">RØDECaster Video Control</div>
             </div>
         </div>
 
         <nav class="nav-tabs">
             <% loop $PanelNavigation %>
-                <a href="$Route" class="nav-pill <% if $IsActive \%>active<\% end_if \%>">$Title</a>
+                <a href="$Route" class="nav-pill <% if $IsActive %>active<% end_if %>">$Title</a>
             <% end_loop %>
             <a href="/panel/lock" class="nav-pill lock-btn">Lock Panel</a>
         </nav>
