@@ -18,7 +18,6 @@ class VPXController extends Controller
     private static array $allowed_actions = [
         'index',
         'video',
-        'rodecaster',
         'pin',
         'login',
         'discover',
@@ -29,7 +28,6 @@ class VPXController extends Controller
     private static array $url_handlers = [
         '' => 'index',
         'video' => 'video',
-        'rodecaster' => 'rodecaster',
         'pin' => 'pin',
         'login' => 'login',
         'discover' => 'discover',
@@ -90,34 +88,6 @@ class VPXController extends Controller
             'PanelSettings' => $branding,
             'SiteConfig' => $branding,
         ])->renderWith(['App/Controller/TouchPanelVideo']);
-    }
-
-    /**
-     * RØDECaster Video Control Screen (/panel/rodecaster)
-     */
-    public function rodecaster(HTTPRequest $request): DBHTMLText|HTTPResponse
-    {
-        if (!VPXSecurityGuard::isAuthenticated($request)) {
-            return $this->redirect('/panel/splash');
-        }
-
-        if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_RODECASTER)) {
-            $fallbackUrl = $this->getFirstPermittedUrl($request);
-            if ($fallbackUrl !== null && $fallbackUrl !== '/panel/rodecaster') {
-                return $this->redirect($fallbackUrl);
-            }
-
-            VPXSecurityGuard::lock($request);
-            $request->getSession()->save($request);
-            return $this->redirect('/panel/pin?err=denied');
-        }
-
-        $branding = PanelSettings::current();
-
-        return $this->customise([
-            'PanelSettings' => $branding,
-            'SiteConfig' => $branding,
-        ])->renderWith(['App/Controller/TouchPanelRodeCaster']);
     }
 
     /**
@@ -207,26 +177,6 @@ class VPXController extends Controller
         VPXSecurityGuard::lock($request);
         $request->getSession()->save($request);
         return $this->redirect('/panel/splash');
-    }
-
-    public function CanAccessMatrix(): bool
-    {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_MATRIX);
-    }
-
-    public function CanAccessAudio(): bool
-    {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX);
-    }
-
-    public function CanAccessLighting(): bool
-    {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC);
-    }
-
-    public function CanAccessRodeCaster(): bool
-    {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_RODECASTER);
     }
 
     public function CanAccessDiscovery(): bool
