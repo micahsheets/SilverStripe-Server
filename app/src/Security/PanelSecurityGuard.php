@@ -11,11 +11,11 @@ use SilverStripe\Security\Permission;
 use SilverStripe\Security\Security;
 use SilverStripe\Security\SecurityToken;
 
-class VPXSecurityGuard
+class PanelSecurityGuard
 {
-    public const SESSION_KEY = 'VPXPanelUnlocked';
-    public const SESSION_AUTH_TYPE = 'VPXAuthType';       // 'cms' | 'member' | 'basic' | 'master'
-    public const SESSION_MEMBER_ID = 'VPXAuthMemberID';
+    public const SESSION_KEY = 'PanelUnlocked';
+    public const SESSION_AUTH_TYPE = 'AuthType';       // 'cms' | 'member' | 'basic' | 'master'
+    public const SESSION_MEMBER_ID = 'AuthMemberID';
 
     public const AUTH_TYPE_CMS = 'cms';
     public const AUTH_TYPE_MEMBER = 'member';
@@ -24,7 +24,7 @@ class VPXSecurityGuard
 
     public static function isIPAllowed(HTTPRequest $request): bool
     {
-        $rawList = (string) Environment::getEnv('VPX_ALLOWED_SUBNETS');
+        $rawList = (string) Environment::getEnv('PANEL_ALLOWED_SUBNETS');
         if (trim($rawList) === '') {
             return true;
         }
@@ -75,7 +75,7 @@ class VPXSecurityGuard
 
         // 4. Master .env Fallback PIN session
         if ($authType === self::AUTH_TYPE_MASTER) {
-            $pin = (string) Environment::getEnv('VPX_PANEL_PIN');
+            $pin = (string) Environment::getEnv('PANEL_PANEL_PIN');
             return $pin !== '' && $session->get(self::SESSION_KEY) === hash('sha256', 'master:' . $pin);
         }
 
@@ -84,7 +84,7 @@ class VPXSecurityGuard
 
     /**
      * Checks if the current authenticated user/session has permission to access a specific interface
-     * (e.g., VPXPermissionProvider::PERM_ACCESS_MATRIX, PERM_ACCESS_AUDIO_DTX, PERM_ACCESS_LIGHTING_ENTTEC).
+     * (e.g., PanelPermissionProvider::PERM_ACCESS_MATRIX, PERM_ACCESS_AUDIO_DTX, PERM_ACCESS_LIGHTING_ENTTEC).
      */
     public static function canAccess(HTTPRequest $request, string $permissionCode): bool
     {
@@ -133,7 +133,7 @@ class VPXSecurityGuard
      * Evaluates a submitted keypad PIN against the 3-tier hierarchy:
      *   Tier 1: Individual Member PanelPIN (from /admin/security)
      *   Tier 2: Basic Shared PanelSettings PIN (from /admin/av-system)
-     *   Tier 3: Emergency Master .env VPX_PANEL_PIN
+     *   Tier 3: Emergency Master .env PANEL_PANEL_PIN
      */
     public static function verifyPIN(HTTPRequest $request, string $submittedPin): bool
     {
@@ -167,7 +167,7 @@ class VPXSecurityGuard
         }
 
         // Tier 3: Emergency Master .env Fallback PIN
-        $masterPin = (string) Environment::getEnv('VPX_PANEL_PIN');
+        $masterPin = (string) Environment::getEnv('PANEL_PANEL_PIN');
         if ($masterPin !== '' && hash_equals($masterPin, $pin)) {
             $session->set(self::SESSION_AUTH_TYPE, self::AUTH_TYPE_MASTER);
             $session->clear(self::SESSION_MEMBER_ID);
@@ -254,7 +254,7 @@ class VPXSecurityGuard
 
     private static function isAuthRequired(): bool
     {
-        $rawRequire = Environment::getEnv('VPX_REQUIRE_CMS_OR_PIN');
+        $rawRequire = Environment::getEnv('PANEL_REQUIRE_CMS_OR_PIN');
         return $rawRequire === false ? true : filter_var($rawRequire, FILTER_VALIDATE_BOOLEAN);
     }
 
@@ -293,7 +293,7 @@ class VPXSecurityGuard
             }
         }
 
-        if (self::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+        if (self::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY)) {
             return '/panel/discover';
         }
 

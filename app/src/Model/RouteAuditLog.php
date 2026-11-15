@@ -2,7 +2,7 @@
 
 namespace App\Model;
 
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Core\Environment;
 use SilverStripe\Core\Injector\Injector;
@@ -82,7 +82,7 @@ class RouteAuditLog extends DataObject
 
         if (Injector::inst()->has(HTTPRequest::class)) {
             $request = Injector::inst()->get(HTTPRequest::class);
-            $actor = VPXSecurityGuard::getActorLabel($request);
+            $actor = PanelSecurityGuard::getActorLabel($request);
             $ip = (string) $request->getIP();
         }
 
@@ -109,12 +109,12 @@ class RouteAuditLog extends DataObject
     }
 
     /**
-     * Delete audit log entries older than $days (defaults to VPX_AUDIT_RETENTION_DAYS or 30).
+     * Delete audit log entries older than $days (defaults to PANEL_AUDIT_RETENTION_DAYS or 30).
      */
     public static function pruneOldLogs(?int $days = null): int
     {
         if ($days === null) {
-            $envDays = Environment::getEnv('VPX_AUDIT_RETENTION_DAYS');
+            $envDays = Environment::getEnv('PANEL_AUDIT_RETENTION_DAYS');
             $days = $envDays !== false ? (int) $envDays : 30;
         }
 

@@ -17,7 +17,7 @@ class ProjectorController extends Controller implements TouchPanelModuleInterfac
 {
     use TouchPanelControllerTrait;
 
-    public const PERM_ACCESS = 'VPX_ACCESS_PROJECTOR';
+    public const PERM_ACCESS = 'PANEL_ACCESS_PROJECTOR';
 
     private static string $url_segment = 'panel/projector';
 

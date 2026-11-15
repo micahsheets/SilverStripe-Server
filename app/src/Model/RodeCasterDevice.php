@@ -14,10 +14,6 @@ use SilverStripe\ORM\DataObject;
  * @property int $InputCount
  * @property int $OverlayCount
  * @property int $MediaCount
- * @property string $SceneLabels
- * @property string $InputLabels
- * @property string $OverlayLabels
- * @property string $MediaLabels
  * @property int $SortOrder
  */
 class RodeCasterDevice extends DataObject
@@ -28,31 +24,27 @@ class RodeCasterDevice extends DataObject
     private static string $plural_name = 'RØDECaster Videos';
 
     private static array $db = [
-        'Title' => 'Varchar(100)',
-        'IPAddress' => 'Varchar(45)',
-        'Port' => 'Int',
-        'SceneCount' => 'Int',
-        'InputCount' => 'Int',
+        'Title'        => 'Varchar(100)',
+        'IPAddress'    => 'Varchar(45)',
+        'Port'         => 'Int',
+        'SceneCount'   => 'Int',
+        'InputCount'   => 'Int',
         'OverlayCount' => 'Int',
-        'MediaCount' => 'Int',
-        'SceneLabels' => 'Text',
-        'InputLabels' => 'Text',
-        'OverlayLabels' => 'Text',
-        'MediaLabels' => 'Text',
-        'SortOrder' => 'Int',
+        'MediaCount'   => 'Int',
+        'SortOrder'    => 'Int',
     ];
 
     private static array $defaults = [
-        'Port' => 10024,
-        'SceneCount' => 6,
-        'InputCount' => 6,
+        'Port'         => 10024,
+        'SceneCount'   => 6,
+        'InputCount'   => 6,
         'OverlayCount' => 6,
-        'MediaCount' => 6,
+        'MediaCount'   => 6,
     ];
 
     private static array $summary_fields = [
-        'Title' => 'Name',
-        'IPAddress' => 'IP Address',
+        'Title'       => 'Name',
+        'IPAddress'   => 'IP Address',
         'PortDisplay' => 'OSC TCP Port',
     ];
 
@@ -67,6 +59,8 @@ class RodeCasterDevice extends DataObject
     {
         $fields = parent::getCMSFields();
 
+        $fields->removeByName(['SceneLabels', 'InputLabels', 'OverlayLabels', 'MediaLabels', 'SortOrder']);
+
         $fields->replaceField(
             'Port',
             TextField::create('Port', 'OSC TCP Port')
@@ -79,28 +73,5 @@ class RodeCasterDevice extends DataObject
         );
 
         return $fields;
-    }
-
-    public function getButtonList(string $type): array
-    {
-        $countField = $type . 'Count';
-        $labelField = $type . 'Labels';
-        $count = max(1, (int) ($this->{$countField} ?: 6));
-
-        // Optional newline- or comma-separated custom labels in CMS (e.g., "Wide Shot, Host Cam, Guest Cam")
-        $rawLabels = trim((string) $this->{$labelField});
-        $custom = $rawLabels !== ''
-            ? array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $rawLabels))))
-            : [];
-
-        $buttons = [];
-        for ($i = 1; $i <= $count; $i++) {
-            $buttons[] = [
-                'index' => $i,
-                'label' => $custom[$i - 1] ?? "{$type} {$i}",
-            ];
-        }
-
-        return $buttons;
     }
 }

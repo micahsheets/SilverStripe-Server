@@ -3,8 +3,8 @@
 namespace App\Extension;
 
 use App\Model\PanelSettings;
-use App\Security\VPXPermissionProvider;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelPermissionProvider;
+use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\Controller;
 use SilverStripe\Core\Extension;
 use SilverStripe\Model\ArrayData;
@@ -30,7 +30,7 @@ class PanelControllerExtension extends Extension
         $currentPath = trim($request->getURL(), '/');
 
         foreach ($activeModules as $mod) {
-            if (VPXSecurityGuard::canAccess($request, $mod->PermissionCode)) {
+            if (PanelSecurityGuard::canAccess($request, $mod->PermissionCode)) {
                 $modPath = trim((string) $mod->Route, '/');
                 $isActive = ($currentPath === $modPath || str_starts_with($currentPath, $modPath . '/'));
 
@@ -62,7 +62,7 @@ class PanelControllerExtension extends Extension
             return false;
         }
 
-        return VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY);
+        return PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY);
     }
 
     public function getPanelTheme(): string

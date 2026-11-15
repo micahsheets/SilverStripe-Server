@@ -141,8 +141,8 @@ class VPXDiscoveryService
      */
     private function fetchAuthenticatedHttpInfo(string $ip): string
     {
-        $user = getenv('VPX_WEB_USER') ?: 'admin';
-        $pass = getenv('VPX_WEB_PASS') ?: 'admin';
+        $user = getenv('PANEL_WEB_USER') ?: 'admin';
+        $pass = getenv('PANEL_WEB_PASS') ?: 'admin';
 
         foreach (['/cgi-bin/get_info.cgi', '/cgi-bin/status.cgi', '/info.json', '/'] as $uri) {
             $fp = @fsockopen($ip, 80, $errno, $errstr, 0.35);
@@ -206,7 +206,7 @@ class VPXDiscoveryService
 
     private function inferDefaultSubnet(): string
     {
-        $envSubnet = getenv('VPX_DISCOVERY_SUBNET');
+        $envSubnet = getenv('PANEL_DISCOVERY_SUBNET');
         if (is_string($envSubnet) && trim($envSubnet) !== '') {
             return trim($envSubnet);
         }

@@ -1,214 +1,330 @@
 const rcState = {
-    csrfToken: document.body.dataset.csrf || '',
     devices: [],
     activeDeviceId: 0,
+    renderedDeviceId: 0,
     onlineMap: {},
-    switchingMode: null, // 'studioLeft' | 'instant' | null
-    activeScene: null,
-    activeInput: null,
-    activeMedia: null,
-    activeOverlays: new Set()
+    modeMap: {},
+    padStateMap: {},
+    switchingMode: 'instant',
+    sceneStates: {},
+    inputStates: {},
+    overlayStates: {},
+    mediaStates: {},
 };
 
-function showToast(message, isError = false) {
-    if (isError) console.error('RØDECaster Panel Error:', message);
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = isError ? 'show error' : 'show';
-    toast.style.pointerEvents = 'auto';
-    toast.onclick = () => { toast.className = ''; };
-    clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => { toast.className = ''; }, isError ? 15000 : 2500);
-}
+let rcPingInFlight = false;
+let rcVolDragging = false;
+let rcVolTimer = null;
 
 async function parseJsonSafe(res) {
     const text = await res.text();
     try {
         return JSON.parse(text);
     } catch (e) {
-        throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 120));
+        return { success: false, error: `HTTP ${res.status}: ${text.slice(0, 120)}` };
     }
 }
 
+function isStudioMode() {
+    const mode = String(rcState.switchingMode || '').toLowerCase();
+    return mode.startsWith('studio');
+}
+
+function showRcToast(message, isError = false) {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = 'toast show' + (isError ? ' error' : '');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => {
+        toast.className = 'toast';
+    }, 2400);
+}
+
+function applyHardwarePadState(deviceKey) {
+    const hw = rcState.padStateMap[deviceKey];
+    if (!hw) return;
+
+    if (hw.scenes) rcState.sceneStates = { ...hw.scenes };
+    if (hw.inputs) rcState.inputStates = { ...hw.inputs };
+    if (hw.overlays) rcState.overlayStates = { ...hw.overlays };
+    if (hw.media) rcState.mediaStates = { ...hw.media };
+}
+
+function updateVolumeUI(percent) {
+    const slider = document.getElementById('rc-master-vol');
+    const readout = document.getElementById('rc-master-vol-val');
+    if (slider && !rcVolDragging) slider.value = percent;
+    if (readout) readout.textContent = `${percent}%`;
+}
+
+function initMasterVolumeSlider() {
+    const slider = document.getElementById('rc-master-vol');
+    if (!slider || slider.dataset.bound === '1') return;
+    slider.dataset.bound = '1';
+
+    slider.addEventListener('pointerdown', () => { rcVolDragging = true; });
+    window.addEventListener('pointerup', () => { rcVolDragging = false; });
+
+    slider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10) || 0;
+        const readout = document.getElementById('rc-master-vol-val');
+        if (readout) readout.textContent = `${val}%`;
+
+        clearTimeout(rcVolTimer);
+        rcVolTimer = setTimeout(() => {
+            window.triggerRodeCaster('volume', val, `HDMI / USB Mix ${val}%`);
+        }, 60);
+    });
+}
+
+window.selectRodeCasterDevice = function (deviceId) {
+    rcState.activeDeviceId = deviceId;
+    rcState.renderedDeviceId = 0; // Force full grid rebuild for newly selected device
+    const key = String(deviceId);
+    if (rcState.modeMap[key]) {
+        rcState.switchingMode = rcState.modeMap[key];
+    }
+    applyHardwarePadState(key);
+    renderRodeCaster();
+};
+
 async function loadRodeCasterStatus() {
     try {
-        const res = await fetch('/api/rodecaster/status');
-        if (res.status === 401) { window.location.href = '/panel'; return; }
-        const data = await parseJsonSafe(res);
-        if (!data.success) throw new Error(data.error || 'Failed to load RØDECaster config');
-
-        rcState.csrfToken = data.csrfToken || rcState.csrfToken;
-        rcState.devices = data.devices || [];
-        if (!rcState.activeDeviceId && rcState.devices.length > 0) {
-            rcState.activeDeviceId = rcState.devices[0].id;
+        const res = await fetch('/api/rodecaster/status', { credentials: 'same-origin' });
+        if (!res.ok) {
+            showRcToast(`Status error: HTTP ${res.status}`, true);
+            return;
         }
-        renderRodeCaster();
-    } catch (err) {
-        document.getElementById('connectionDot').style.backgroundColor = '#ef4444';
-        showToast(err.message || 'Unable to reach RØDECaster API', true);
+        const data = await parseJsonSafe(res);
+        if (data.success && Array.isArray(data.devices)) {
+            rcState.devices = data.devices;
+            if (rcState.activeDeviceId === 0 && rcState.devices.length > 0) {
+                rcState.activeDeviceId = rcState.devices[0].id;
+            }
+            rcState.renderedDeviceId = 0;
+            renderRodeCaster();
+        }
+    } catch (e) {
+        showRcToast('Failed to load RØDECaster layout', true);
     }
 }
 
 async function loadRodeCasterPing() {
+    if (rcPingInFlight || document.hidden) return;
+    rcPingInFlight = true;
     try {
-        const res = await fetch('/api/rodecaster/ping');
+        const res = await fetch('/api/rodecaster/ping', { credentials: 'same-origin' });
         if (!res.ok) return;
         const data = await parseJsonSafe(res);
-        if (data.success && data.online) {
-            rcState.onlineMap = data.online;
-            renderDeviceHeader();
+        if (data.success) {
+            const activeKey = String(rcState.activeDeviceId);
+            if (data.online) rcState.onlineMap = data.online;
+            if (data.modes) {
+                rcState.modeMap = data.modes;
+                if (activeKey !== '0' && data.modes[activeKey]) {
+                    rcState.switchingMode = data.modes[activeKey];
+                }
+            }
+            if (data.states) {
+                rcState.padStateMap = data.states;
+                if (activeKey !== '0') {
+                    applyHardwarePadState(activeKey);
+                }
+            }
+            if (data.volumes && activeKey !== '0' && typeof data.volumes[activeKey] === 'number') {
+                updateVolumeUI(data.volumes[activeKey]);
+            }
+            renderRodeCaster();
         }
     } catch (e) {
         // Ignore transient ping errors
+    } finally {
+        rcPingInFlight = false;
     }
 }
 
-async function triggerRodeCaster(action, index, label) {
-    if (!rcState.activeDeviceId) {
-        showToast('No RØDECaster Video configured in CMS', true);
-        return;
+window.triggerRodeCaster = async function (action, index, label = '') {
+    const idxKey = String(index);
+
+    if (action === 'studio') {
+        rcState.switchingMode = 'studio';
+        renderRodeCaster();
+    } else if (action === 'instant') {
+        rcState.switchingMode = 'instant';
+        renderRodeCaster();
+    } else if (action === 'scene') {
+        const activeClass = isStudioMode() ? 'state-green' : 'state-red';
+        Object.keys(rcState.sceneStates).forEach((k) => {
+            if (rcState.sceneStates[k] === activeClass) {
+                rcState.sceneStates[k] = 'state-white';
+            }
+        });
+        if (rcState.sceneStates[idxKey] !== 'state-dim') {
+            rcState.sceneStates[idxKey] = activeClass;
+        }
+        renderRodeCaster();
+    } else if (action === 'input') {
+        const activeClass = isStudioMode() ? 'state-green' : 'state-red';
+        Object.keys(rcState.inputStates).forEach((k) => {
+            if (rcState.inputStates[k] === activeClass) {
+                rcState.inputStates[k] = 'state-white';
+            }
+        });
+        if (rcState.inputStates[idxKey] !== 'state-dim') {
+            rcState.inputStates[idxKey] = activeClass;
+        }
+        renderRodeCaster();
+    } else if (action === 'overlay') {
+        if (rcState.overlayStates[idxKey] !== 'state-dim') {
+            rcState.overlayStates[idxKey] = rcState.overlayStates[idxKey] === 'state-red' ? 'state-blue' : 'state-red';
+        }
+        renderRodeCaster();
+    } else if (action === 'media') {
+        if (rcState.mediaStates[idxKey] !== 'state-dim') {
+            rcState.mediaStates[idxKey] = rcState.mediaStates[idxKey] === 'state-red' ? 'state-pink' : 'state-red';
+        }
+        renderRodeCaster();
     }
 
     try {
+        const csrf = document.body?.dataset?.csrf || '';
         const res = await fetch('/api/rodecaster/trigger', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': rcState.csrfToken
+                'X-CSRF-TOKEN': csrf,
             },
             body: JSON.stringify({
-                device_id: rcState.activeDeviceId,
-                action: action,
-                index: index
-            })
+                deviceId: rcState.activeDeviceId || 1,
+                action,
+                index,
+            }),
         });
         const data = await parseJsonSafe(res);
-        if (!data.success) {
-            showToast(data.error || 'OSC command failed', true);
-            return;
+        if (!res.ok || !data.success) {
+            showRcToast(data.error || `Trigger failed (HTTP ${res.status})`, true);
+        } else if (label && action !== 'volume') {
+            showRcToast(label);
         }
-
-        if (data.result && data.result.mode) {
-            rcState.switchingMode = data.result.mode;
-        } else if (action === 'instant') {
-            rcState.switchingMode = 'instant';
-        } else if (action === 'studio') {
-            rcState.switchingMode = 'studioLeft';
-        } else if (action === 'scene') {
-            rcState.activeScene = index;
-            rcState.activeInput = null;
-        } else if (action === 'input') {
-            rcState.activeInput = index;
-            rcState.activeScene = null;
-        } else if (action === 'media') {
-            rcState.activeMedia = index;
-        } else if (action === 'overlay') {
-            rcState.activeOverlays.has(index)
-                ? rcState.activeOverlays.delete(index)
-                : rcState.activeOverlays.add(index);
-        }
-
-        renderRodeCaster();
-        showToast('Triggered ' + label);
-    } catch (err) {
-        showToast(err.message || 'Network error sending OSC command', true);
+        setTimeout(loadRodeCasterPing, 200);
+    } catch (e) {
+        showRcToast('Network error sending command', true);
     }
-}
+};
 
-function getActiveDevice() {
-    return rcState.devices.find(d => d.id === rcState.activeDeviceId) || null;
-}
+function buildPadGrid(containerId, itemsMap, stateMap, defaultState, action) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
 
-function renderModeControls() {
-    const studioBtn = document.getElementById('btnModeStudio');
-    const instantBtn = document.getElementById('btnModeInstant');
-    if (!studioBtn || !instantBtn) return;
+    const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const entries = Object.entries(itemsMap || {});
+    el.innerHTML = '';
 
-    const isInstant = rcState.switchingMode === 'instant';
-    const isStudio = rcState.switchingMode && rcState.switchingMode !== 'instant';
+    entries.forEach(([slot, label]) => {
+        const idx = parseInt(slot, 10) || 1;
+        const badge = action === 'input' ? `IN ${idx}` : (letters[idx - 1] || `PAD ${idx}`);
+        const cls = stateMap[String(idx)] || defaultState;
 
-    studioBtn.classList.toggle('active', Boolean(isStudio));
-    instantBtn.classList.toggle('active', Boolean(isInstant));
-}
-
-function renderDeviceHeader() {
-    const tabs = document.getElementById('rcDeviceTabs');
-    const statusWrap = document.getElementById('rcDeviceStatus');
-    tabs.innerHTML = '';
-    statusWrap.innerHTML = '';
-
-    rcState.devices.forEach(dev => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'room-tab' + (dev.id === rcState.activeDeviceId ? ' active' : '');
-        btn.textContent = dev.title;
-        btn.onclick = () => {
-            rcState.activeDeviceId = dev.id;
-            rcState.switchingMode = null;
-            rcState.activeScene = null;
-            rcState.activeInput = null;
-            rcState.activeMedia = null;
-            rcState.activeOverlays.clear();
-            renderRodeCaster();
-        };
-        tabs.appendChild(btn);
+        btn.className = `rc-pad-btn ${cls}`;
+        btn.dataset.slot = String(idx);
+        btn.addEventListener('click', () => window.triggerRodeCaster(action, idx, String(label)));
+
+        const idxSpan = document.createElement('span');
+        idxSpan.className = 'rc-pad-index';
+        idxSpan.textContent = badge;
+
+        const lblSpan = document.createElement('span');
+        lblSpan.className = 'rc-pad-label';
+        lblSpan.textContent = String(label);
+
+        btn.appendChild(idxSpan);
+        btn.appendChild(lblSpan);
+        el.appendChild(btn);
     });
-
-    const activeDev = getActiveDevice();
-    if (activeDev) {
-        const isOnline = rcState.onlineMap[activeDev.id];
-        const badge = document.createElement('span');
-        badge.className = 'ping-badge';
-
-        const dot = document.createElement('span');
-        dot.className = 'ping-dot' + (isOnline === true ? ' online' : (isOnline === false ? ' offline' : ''));
-
-        const text = document.createElement('span');
-        text.textContent = activeDev.ip + ':' + activeDev.port + (isOnline === true ? ' • ONLINE' : (isOnline === false ? ' • OFFLINE' : ''));
-
-        badge.append(dot, text);
-        statusWrap.appendChild(badge);
-    }
 }
 
-function renderPadGrid(containerId, items, action, isActiveFn, extraClass = '') {
-    const container = document.getElementById(containerId);
-    container.innerHTML = '';
+function updatePadGridStates(containerId, stateMap, defaultState) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
 
-    if (!items || items.length === 0) {
-        container.innerHTML = '<div class="hint">No RØDECaster Video configured in /admin</div>';
-        return;
-    }
-
-    items.forEach(item => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'rc-pad-btn ' + extraClass + (isActiveFn(item.index) ? ' active' : '');
-
-        const idxEl = document.createElement('div');
-        idxEl.className = 'rc-pad-index';
-        idxEl.textContent = action.toUpperCase() + ' ' + item.index;
-
-        const labelEl = document.createElement('div');
-        labelEl.className = 'rc-pad-label';
-        labelEl.textContent = item.label;
-
-        btn.append(idxEl, labelEl);
-        btn.onclick = () => triggerRodeCaster(action, item.index, item.label);
-        container.appendChild(btn);
+    el.querySelectorAll('.rc-pad-btn').forEach((btn) => {
+        const slot = btn.dataset.slot;
+        const cls = stateMap[slot] || defaultState;
+        btn.className = `rc-pad-btn ${cls}`;
     });
 }
 
 function renderRodeCaster() {
-    renderDeviceHeader();
-    renderModeControls();
-    const dev = getActiveDevice();
+    const dev = rcState.devices.find((d) => d.id === rcState.activeDeviceId) || rcState.devices[0];
+    if (!dev) return;
 
-    renderPadGrid('rcScenesGrid', dev ? dev.scenes : [], 'scene', idx => rcState.activeScene === idx);
-    renderPadGrid('rcInputsGrid', dev ? dev.inputs : [], 'input', idx => rcState.activeInput === idx);
-    renderPadGrid('rcOverlaysGrid', dev ? dev.overlays : [], 'overlay', idx => rcState.activeOverlays.has(idx), 'overlay-btn');
-    renderPadGrid('rcMediaGrid', dev ? dev.media : [], 'media', idx => rcState.activeMedia === idx);
+    const needsBuild = rcState.renderedDeviceId !== dev.id;
+
+    if (needsBuild) {
+        const tabsEl = document.getElementById('rcDeviceTabs');
+        if (tabsEl) {
+            tabsEl.innerHTML = '';
+            rcState.devices.forEach((d) => {
+                const tab = document.createElement('button');
+                tab.type = 'button';
+                tab.className = `room-pill ${d.id === dev.id ? 'active' : ''}`;
+                tab.textContent = d.name;
+                tab.addEventListener('click', () => window.selectRodeCasterDevice(d.id));
+                tabsEl.appendChild(tab);
+            });
+        }
+
+        buildPadGrid('rcScenesGrid', dev.scenes, rcState.sceneStates, 'state-white', 'scene');
+        buildPadGrid('rcInputsGrid', dev.inputs, rcState.inputStates, 'state-dim', 'input');
+        buildPadGrid('rcOverlaysGrid', dev.overlays, rcState.overlayStates, 'state-blue', 'overlay');
+        buildPadGrid('rcMediaGrid', dev.media, rcState.mediaStates, 'state-pink', 'media');
+        rcState.renderedDeviceId = dev.id;
+    } else {
+        updatePadGridStates('rcScenesGrid', rcState.sceneStates, 'state-white');
+        updatePadGridStates('rcInputsGrid', rcState.inputStates, 'state-dim');
+        updatePadGridStates('rcOverlaysGrid', rcState.overlayStates, 'state-blue');
+        updatePadGridStates('rcMediaGrid', rcState.mediaStates, 'state-pink');
+    }
+
+    const isOnline = Boolean(rcState.onlineMap[String(dev.id)]);
+    const dot = document.getElementById('connectionDot');
+    if (dot) {
+        dot.classList.toggle('online', isOnline);
+        dot.classList.toggle('offline', !isOnline);
+    }
+
+    const statusEl = document.getElementById('rcDeviceStatus');
+    if (statusEl) {
+        statusEl.innerHTML = `<span class="status-pill ${isOnline ? 'online' : 'offline'}">${isOnline ? 'ONLINE' : 'OFFLINE'}</span>`;
+    }
+
+    const btnStudio = document.getElementById('btnModeStudio');
+    const btnInstant = document.getElementById('btnModeInstant');
+    if (btnStudio) btnStudio.classList.toggle('active', isStudioMode());
+    if (btnInstant) btnInstant.classList.toggle('active', !isStudioMode());
+
+    const transEl = document.getElementById('rcTransitionControls');
+    if (transEl) {
+        transEl.style.opacity = isStudioMode() ? '1' : '0.65';
+    }
 }
 
-loadRodeCasterStatus().then(() => loadRodeCasterPing());
-setInterval(loadRodeCasterPing, 15000);
+function initRodeCaster() {
+    initMasterVolumeSlider();
+    loadRodeCasterStatus().then(() => loadRodeCasterPing());
+    setInterval(loadRodeCasterPing, 1000);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initRodeCaster);
+} else {
+    initRodeCaster();
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadRodeCasterPing();
+});

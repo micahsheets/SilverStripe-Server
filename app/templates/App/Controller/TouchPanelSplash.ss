@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>VPX AV MATRIX<% end_if %></title>
+    <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control<% end_if %></title>
     <link rel="stylesheet" href="/css/touch-panel.css">
     <style>
         html, body {
@@ -110,7 +110,7 @@
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(84).URL" alt="Logo" class="splash-logo">
             <% end_if %>
             <h1 class="splash-title">
-                <% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>VPX AV MATRIX<% end_if %>
+                <% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control<% end_if %>
             </h1>
             <div class="splash-prompt">Tap Anywhere to Begin</div>
         </div>

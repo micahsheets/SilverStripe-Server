@@ -5,8 +5,8 @@ namespace App\Controller;
 use App\Model\Location;
 use App\Model\RoutePreset;
 use App\Model\VPXDevice;
-use App\Security\VPXPermissionProvider;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelPermissionProvider;
+use App\Security\PanelSecurityGuard;
 use App\Service\VPXDiscoveryService;
 use App\Service\VPXUDPService;
 use SilverStripe\Control\Controller;
@@ -35,7 +35,7 @@ class UDPController extends Controller
         parent::init();
         $request = $this->getRequest();
 
-        if (!VPXSecurityGuard::isIPAllowed($request)) {
+        if (!PanelSecurityGuard::isIPAllowed($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'IP not allowed.'], 403));
         }
 
@@ -44,18 +44,18 @@ class UDPController extends Controller
             return;
         }
 
-        if (!VPXSecurityGuard::isAuthenticated($request)) {
+        if (!PanelSecurityGuard::isAuthenticated($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Auth required.'], 401));
         }
-        if ($request->isPOST() && !VPXSecurityGuard::isValidCSRF($request)) {
+        if ($request->isPOST() && !PanelSecurityGuard::isValidCSRF($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403));
         }
 
         $requiredPermission = in_array($action, ['discover', 'import'], true)
-            ? VPXPermissionProvider::PERM_ACCESS_DISCOVERY
+            ? PanelPermissionProvider::PERM_ACCESS_DISCOVERY
             : VPXController::PERM_ACCESS;
 
-        if (!VPXSecurityGuard::canAccess($request, $requiredPermission)) {
+        if (!PanelSecurityGuard::canAccess($request, $requiredPermission)) {
             throw new HTTPResponse_Exception(
                 $this->jsonResponse(['success' => false, 'error' => 'Permission denied for this operation.'], 403)
             );

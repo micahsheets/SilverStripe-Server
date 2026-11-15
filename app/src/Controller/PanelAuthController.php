@@ -3,8 +3,8 @@
 namespace App\Controller;
 
 use App\Model\PanelSettings;
-use App\Security\VPXPermissionProvider;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelPermissionProvider;
+use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
@@ -32,7 +32,7 @@ class PanelAuthController extends Controller
     protected function init(): void
     {
         parent::init();
-        if (!VPXSecurityGuard::isIPAllowed($this->getRequest())) {
+        if (!PanelSecurityGuard::isIPAllowed($this->getRequest())) {
             $this->httpError(403, 'Access denied from this network.');
         }
     }
@@ -54,7 +54,7 @@ class PanelAuthController extends Controller
         $branding = PanelSettings::current();
         $session = $request->getSession();
         $csrf = SecurityToken::inst()->getValue();
-        $session->set('VPXLockInit', 1);
+        $session->set('PanelLockInit', 1);
         $session->save($request);
 
         $errorMsg = match ((string) $request->getVar('err')) {
@@ -86,7 +86,7 @@ class PanelAuthController extends Controller
             return $this->redirect('/panel/pin?err=emptypin');
         }
 
-        if (!VPXSecurityGuard::verifyPIN($request, $pin)) {
+        if (!PanelSecurityGuard::verifyPIN($request, $pin)) {
             return $this->redirect('/panel/pin?err=pinfail');
         }
 
@@ -96,14 +96,14 @@ class PanelAuthController extends Controller
             return $this->redirect($target);
         }
 
-        VPXSecurityGuard::lock($request);
+        PanelSecurityGuard::lock($request);
         $request->getSession()->save($request);
         return $this->redirect('/panel/pin?err=denied');
     }
 
     public function lock(HTTPRequest $request): HTTPResponse
     {
-        VPXSecurityGuard::lock($request);
+        PanelSecurityGuard::lock($request);
         $request->getSession()->save($request);
         return $this->redirect('/panel/splash');
     }
@@ -112,7 +112,7 @@ class PanelAuthController extends Controller
     {
         $session = $request->getSession();
 
-        if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+        if (!PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY)) {
             $session->save($request);
             return $this->redirect('/panel/splash');
         }
@@ -131,6 +131,6 @@ class PanelAuthController extends Controller
 
     protected function getFirstPermittedUrl(HTTPRequest $request): ?string
     {
-        return VPXSecurityGuard::getFirstPermittedUrl($request);
+        return PanelSecurityGuard::getFirstPermittedUrl($request);
     }
 }

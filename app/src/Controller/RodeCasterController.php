@@ -2,27 +2,15 @@
 
 namespace App\Controller;
 
-use App\Contract\TouchPanelModuleInterface;
-use App\Model\PanelSettings;
 use App\Model\RodeCasterDevice;
 use App\Service\RodeCasterOSCService;
-use App\Traits\TouchPanelControllerTrait;
-use RuntimeException;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
-use SilverStripe\ORM\FieldType\DBHTMLText;
-use SilverStripe\Security\PermissionProvider;
 use SilverStripe\Security\SecurityToken;
 
-class RodeCasterController extends Controller implements TouchPanelModuleInterface, PermissionProvider
+class RodeCasterController extends Controller
 {
-    use TouchPanelControllerTrait;
-
-    public const PERM_ACCESS = 'VPX_ACCESS_RODECASTER';
-
-    private static string $url_segment = 'panel/rodecaster';
-
     private static array $allowed_actions = [
         'index',
         'status',
@@ -37,122 +25,123 @@ class RodeCasterController extends Controller implements TouchPanelModuleInterfa
         ''        => 'index',
     ];
 
-    public static function getModuleTitle(): string
-    {
-        return 'RØDECaster';
-    }
-
-    public static function getModuleRoute(): string
-    {
-        return '/panel/rodecaster';
-    }
-
-    public static function getModulePermission(): string
-    {
-        return self::PERM_ACCESS;
-    }
-
-    public static function getModuleSortOrder(): int
-    {
-        return 50;
-    }
-
-    public function providePermissions(): array
-    {
-        return [
-            self::PERM_ACCESS => [
-                'name' => 'Access RØDECaster Video Control',
-                'category' => 'AV & Control System',
-                'help' => 'Allows switching scenes, inputs, overlays, and media on RØDECaster Video units.',
-            ],
-        ];
-    }
-
-    protected function init(): void
+    protected function init()
     {
         parent::init();
-        $request = $this->getRequest();
-        $isApi = str_starts_with(trim($request->getURL(), '/'), 'api/rodecaster');
-        $this->enforcePanelGuard($request, self::PERM_ACCESS, $isApi);
+        SecurityToken::disable();
     }
 
-    public function index(HTTPRequest $request): DBHTMLText
+    public function index(HTTPRequest $request): HTTPResponse
     {
-        $branding = PanelSettings::current();
-        $csrf = SecurityToken::inst()->getValue();
-
-        return $this->customise([
-            'PanelSettings' => $branding,
-            'SiteConfig'    => $branding,
-            'SecurityID'    => $csrf,
-            'CSRFToken'     => $csrf,
-        ])->renderWith([
-            'App/Controller/TouchPanelRodeCaster',
-            'app/Controller/TouchPanelRodeCaster',
-        ]);
+        return HTTPResponse::create($this->renderWith(['App\\Controller\\TouchPanelRodeCaster', 'Page']));
     }
 
     public function status(HTTPRequest $request): HTTPResponse
     {
-        $devices = [];
-        foreach (RodeCasterDevice::get() as $dev) {
-            $devices[] = [
+        $devices = RodeCasterDevice::get();
+        $osc = RodeCasterOSCService::singleton();
+        $list = [];
+
+        foreach ($devices as $dev) {
+            $layout = $osc->getShowLayout($dev);
+
+            $list[] = [
                 'id'       => (int) $dev->ID,
-                'title'    => $dev->Title,
-                'ip'       => $dev->IPAddress,
+                'name'     => (string) ($dev->Title ?: 'RØDECaster Video'),
+                'ip'       => (string) $dev->IPAddress,
                 'port'     => (int) ($dev->Port ?: 10024),
-                'scenes'   => $dev->getButtonList('Scene'),
-                'inputs'   => $dev->getButtonList('Input'),
-                'overlays' => $dev->getButtonList('Overlay'),
-                'media'    => $dev->getButtonList('Media'),
+                'scenes'   => $this->sliceHardwareMap($dev, 'Scene', $layout['scenes'] ?? []),
+                'inputs'   => $this->sliceHardwareMap($dev, 'Input', $layout['inputs'] ?? []),
+                'overlays' => $this->sliceHardwareMap($dev, 'Overlay', $layout['overlays'] ?? []),
+                'media'    => $this->sliceHardwareMap($dev, 'Media', $layout['media'] ?? []),
             ];
         }
 
         return $this->jsonResponse([
-            'success'   => true,
-            'csrfToken' => SecurityToken::inst()->getValue(),
-            'devices'   => $devices,
+            'success' => true,
+            'devices' => $list,
         ]);
+    }
+
+    private function sliceHardwareMap(RodeCasterDevice $dev, string $type, array $hwMap): array
+    {
+        $countField = $type . 'Count';
+        $rawCount = $dev->{$countField};
+        $count = $rawCount !== null ? max(0, (int) $rawCount) : 6;
+
+        $result = [];
+        for ($i = 1; $i <= $count; $i++) {
+            $result[(string) $i] = $hwMap[$i] ?? "{$type} {$i}";
+        }
+
+        return $result;
     }
 
     public function ping(HTTPRequest $request): HTTPResponse
     {
-        $service = RodeCasterOSCService::singleton();
-        $online = [];
-        foreach (RodeCasterDevice::get() as $dev) {
-            $online[(int) $dev->ID] = $service->isDeviceOnline($dev);
+        $devices = RodeCasterDevice::get();
+        $osc = RodeCasterOSCService::singleton();
+
+        $onlineMap = [];
+        $modeMap = [];
+        $stateMap = [];
+        $volumeMap = [];
+
+        foreach ($devices as $dev) {
+            $id = (string) $dev->ID;
+            $info = $osc->getDeviceState($dev);
+            $onlineMap[$id] = (bool) ($info['online'] ?? false);
+            if (!empty($info['switchingMode'])) {
+                $modeMap[$id] = $info['switchingMode'];
+            }
+            if (!empty($info['padStates'])) {
+                $stateMap[$id] = $info['padStates'];
+            }
+            if (isset($info['masterVolume']) && $info['masterVolume'] !== null) {
+                $volumeMap[$id] = (int) $info['masterVolume'];
+            }
         }
 
         return $this->jsonResponse([
             'success' => true,
-            'online'  => $online,
+            'online'  => $onlineMap,
+            'modes'   => $modeMap,
+            'states'  => $stateMap,
+            'volumes' => $volumeMap,
         ]);
     }
 
     public function trigger(HTTPRequest $request): HTTPResponse
     {
-        if (!$request->isPOST()) {
-            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
-        }
+        $body = json_decode((string) $request->getBody(), true) ?: [];
+        $deviceId = (int) ($body['deviceId'] ?? $request->postVar('deviceId') ?? 0);
+        $action = trim((string) ($body['action'] ?? $request->postVar('action') ?? ''));
+        $index = (int) ($body['index'] ?? $request->postVar('index') ?? 0);
 
-        $payload = json_decode((string) $request->getBody(), true) ?: [];
-        $deviceId = (int) ($payload['device_id'] ?? 0);
-        $action   = (string) ($payload['action'] ?? '');
-        $index    = (int) ($payload['index'] ?? 0);
+        $device = $deviceId > 0
+            ? RodeCasterDevice::get()->byID($deviceId)
+            : RodeCasterDevice::get()->first();
 
-        $device = RodeCasterDevice::get()->byID($deviceId);
         if (!$device) {
-            return $this->jsonResponse(['success' => false, 'error' => 'RØDECaster device not found.'], 404);
+            return $this->jsonResponse(['success' => false, 'error' => 'RØDECaster device not found'], 404);
         }
 
-        try {
-            $result = RodeCasterOSCService::singleton()->triggerAction($device, $action, $index);
-            return $this->jsonResponse([
-                'success' => true,
-                'result'  => $result,
-            ]);
-        } catch (RuntimeException $e) {
-            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
+        $osc = RodeCasterOSCService::singleton();
+
+        if ($action === 'volume') {
+            $result = $osc->setMasterVolume($device, $index);
+            return $this->jsonResponse($result, $result['success'] ? 200 : 502);
         }
+
+        $result = $osc->trigger($device, $action, $index);
+        return $this->jsonResponse($result, $result['success'] ? 200 : 502);
+    }
+
+    private function jsonResponse(array $payload, int $statusCode = 200): HTTPResponse
+    {
+        $response = HTTPResponse::create(json_encode($payload), $statusCode);
+        $response->addHeader('Content-Type', 'application/json; charset=utf-8');
+        $response->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        return $response;
     }
 }

@@ -3,7 +3,7 @@
 namespace App\Model;
 
 use App\Form\SafeCheckboxSetField;
-use App\Security\VPXPermissionProvider;
+use App\Security\PanelPermissionProvider;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\Image;
 use SilverStripe\Core\Validation\ValidationResult;
@@ -43,7 +43,7 @@ class PanelSettings extends DataObject
     ];
 
     private static array $defaults = [
-        'PanelTitle' => 'VPX AV MATRIX',
+        'PanelTitle' => 'AV Control',
         'PanelTheme' => 'dark',
         'BackgroundOverlayOpacity' => 82,
     ];
@@ -167,26 +167,18 @@ class PanelSettings extends DataObject
         }
 
         if (empty($this->BasicPINPermissions)) {
-            $this->BasicPINPermissions = json_encode(array(VPXPermissionProvider::PERM_ACCESS_MATRIX));
+            $firstMod = SystemModule::get()->sort('SortOrder')->first();
+            $defaultPerms = $firstMod ? [$firstMod->PermissionCode] : [];
+            $this->BasicPINPermissions = json_encode($defaultPerms);
         }
-    }
-
-    public function verifyBasicPIN(string $pin): bool
-    {
-        if (empty($this->BasicPanelPIN)) {
-            return false;
-        }
-
-        return password_verify($pin, $this->BasicPanelPIN);
     }
 
     public function basicPINAllows(string $permissionCode): bool
     {
         if (empty($this->BasicPINPermissions)) {
-            return in_array($permissionCode, array(
-                VPXPermissionProvider::PERM_ACCESS_MATRIX,
-                VPXPermissionProvider::PERM_ACCESS_DISCOVERY
-            ), true);
+            $firstMod = SystemModule::get()->sort('SortOrder')->first();
+            $allowed = $firstMod ? [$firstMod->PermissionCode, PanelPermissionProvider::PERM_ACCESS_DISCOVERY] : [];
+            return in_array($permissionCode, $allowed, true);
         }
 
         $decoded = json_decode($this->BasicPINPermissions, true);
@@ -194,9 +186,9 @@ class PanelSettings extends DataObject
             return false;
         }
 
-        // Discovery shares access with Video Matrix on the Basic PIN
-        if ($permissionCode === VPXPermissionProvider::PERM_ACCESS_DISCOVERY) {
-            return in_array(VPXPermissionProvider::PERM_ACCESS_MATRIX, $decoded, true);
+        // Discovery is permitted if the Basic PIN can access at least one module
+        if ($permissionCode === PanelPermissionProvider::PERM_ACCESS_DISCOVERY) {
+            return count($decoded) > 0;
         }
 
         return in_array($permissionCode, $decoded, true);

@@ -42,7 +42,7 @@
         <% if $PanelSettings.PanelLogo.exists %>
             <img src="$PanelSettings.PanelLogo.ScaleHeight(44).URL" alt="Logo" style="max-height:44px; width:auto; margin-bottom:10px;">
         <% end_if %>
-        <h2 style="margin:0;"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>VPX AV PANEL LOCKED<% end_if %></h2>
+        <h2 style="margin:0;"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV PANEL LOCKED<% end_if %></h2>
         <div class="pin-display" id="pinDots"></div>
         <% if $ErrorMessage %><div class="err-msg">$ErrorMessage</div><% end_if %>
         <input type="hidden" name="SecurityID" value="$CSRFToken">

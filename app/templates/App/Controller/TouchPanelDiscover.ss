@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Discover VPX Devices<% if $PanelSettings.PanelTitle %> — $PanelSettings.PanelTitle<% end_if %></title>
+    <title>Discover Devices<% if $PanelSettings.PanelTitle %> — $PanelSettings.PanelTitle<% end_if %></title>
     <link rel="stylesheet" href="/css/touch-panel.css?v=28">
     <style>
         .scan-bar { display: flex; gap: 12px; background: var(--card-bg); padding: 18px; border-radius: 16px; border: 1px solid var(--card-border); flex-wrap: wrap; align-items: center; }

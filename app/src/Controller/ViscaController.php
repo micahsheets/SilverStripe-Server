@@ -6,7 +6,7 @@ use App\Contract\TouchPanelModuleInterface;
 use App\Model\PanelSettings;
 use App\Model\RouteAuditLog;
 use App\Model\ViscaCamera;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelSecurityGuard;
 use App\Service\ViscaService;
 use Exception;
 use SilverStripe\Control\Controller;
@@ -15,7 +15,7 @@ use SilverStripe\Security\PermissionProvider;
 
 class ViscaController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
-    public const PERM_ACCESS = 'VPX_ACCESS_CAMERA';
+    public const PERM_ACCESS = 'PANEL_ACCESS_CAMERA';
 
     private static string $url_segment = 'panel/camera';
 
@@ -65,7 +65,7 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
         parent::init();
 
         if ($this->getRequest()->isPOST()) {
-            if (!VPXSecurityGuard::isValidCSRF($this->getRequest())) {
+            if (!PanelSecurityGuard::isValidCSRF($this->getRequest())) {
                 return $this->httpError(403, 'Invalid CSRF token');
             }
         }
@@ -75,7 +75,7 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
     {
         $session = $request->getSession();
 
-        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+        if (!PanelSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             $session->save($request);
             return $this->redirect('/panel/splash');
         }
@@ -97,7 +97,7 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
             return $this->httpError(405, 'Method Not Allowed');
         }
 
-        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+        if (!PanelSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             return $this->httpError(403, 'Forbidden');
         }
 

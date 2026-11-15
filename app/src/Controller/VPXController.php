@@ -4,7 +4,7 @@ namespace App\Controller;
 
 use App\Contract\TouchPanelModuleInterface;
 use App\Model\PanelSettings;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
@@ -13,7 +13,7 @@ use SilverStripe\Security\PermissionProvider;
 
 class VPXController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
-    public const PERM_ACCESS = 'VPX_ACCESS_MATRIX';
+    public const PERM_ACCESS = 'PANEL_ACCESS_MATRIX';
 
     private static string $url_segment = 'panel/video';
 
@@ -59,7 +59,7 @@ class VPXController extends Controller implements TouchPanelModuleInterface, Per
     protected function init(): void
     {
         parent::init();
-        if (!VPXSecurityGuard::isIPAllowed($this->getRequest())) {
+        if (!PanelSecurityGuard::isIPAllowed($this->getRequest())) {
             $this->httpError(403, 'Access denied from this network.');
         }
     }
@@ -73,7 +73,7 @@ class VPXController extends Controller implements TouchPanelModuleInterface, Per
     {
         $session = $request->getSession();
 
-        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+        if (!PanelSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             $session->save($request);
             return $this->redirect('/panel/splash');
         }

@@ -6,8 +6,8 @@ use App\Contract\TouchPanelModuleInterface;
 use App\Model\EnttecDevice;
 use App\Model\Location;
 use App\Model\PanelSettings;
-use App\Security\VPXPermissionProvider;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelPermissionProvider;
+use App\Security\PanelSecurityGuard;
 use App\Service\EnttecSPlayService;
 use App\Traits\TouchPanelControllerTrait;
 use SilverStripe\Control\Controller;
@@ -22,7 +22,7 @@ class EnttecController extends Controller implements TouchPanelModuleInterface, 
 {
     use TouchPanelControllerTrait;
 
-    public const PERM_ACCESS = 'VPX_ACCESS_LIGHTING_ENTTEC';
+    public const PERM_ACCESS = 'PANEL_ACCESS_LIGHTING_ENTTEC';
 
     private static string $url_segment = 'panel/lighting';
 
@@ -280,17 +280,17 @@ class EnttecController extends Controller implements TouchPanelModuleInterface, 
 
     public function CanAccessLighting(): bool
     {
-        return VPXSecurityGuard::canAccess($this->getRequest(), self::PERM_ACCESS);
+        return PanelSecurityGuard::canAccess($this->getRequest(), self::PERM_ACCESS);
     }
 
     public function CanAccessDiscovery(): bool
     {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_DISCOVERY);
+        return PanelSecurityGuard::canAccess($this->getRequest(), PanelPermissionProvider::PERM_ACCESS_DISCOVERY);
     }
 
     public function CurrentActorName(): string
     {
-        return VPXSecurityGuard::getActorLabel($this->getRequest());
+        return PanelSecurityGuard::getActorLabel($this->getRequest());
     }
 
     private function resolveDevice(int $id): EnttecDevice

@@ -4,9 +4,9 @@ namespace App\Security;
 
 use SilverStripe\Security\PermissionProvider;
 
-class VPXPermissionProvider implements PermissionProvider
+class PanelPermissionProvider implements PermissionProvider
 {
-    public const PERM_ACCESS_DISCOVERY = 'VPX_ACCESS_DISCOVERY';
+    public const PERM_ACCESS_DISCOVERY = 'PANEL_ACCESS_DISCOVERY';
 
     public function providePermissions(): array
     {

@@ -13,9 +13,9 @@ class PruneAuditLogsTask extends BuildTask
 {
     protected static string $commandName = 'PruneAuditLogsTask';
 
-    protected string $title = 'Prune Old VPX Audit Logs';
+    protected string $title = 'Prune Old Audit Logs';
 
-    protected static string $description = 'Deletes RouteAuditLog entries older than VPX_AUDIT_RETENTION_DAYS (default: 30 days).';
+    protected static string $description = 'Deletes RouteAuditLog entries older than PANEL_AUDIT_RETENTION_DAYS (default: 30 days).';
 
     protected function execute(InputInterface $input, PolyOutput $output): int
     {

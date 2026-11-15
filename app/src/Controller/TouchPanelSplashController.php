@@ -3,8 +3,8 @@
 namespace App\Controller;
 
 use App\Model\PanelSettings;
-use App\Security\VPXPermissionProvider;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelPermissionProvider;
+use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\ORM\FieldType\DBHTMLText;
@@ -25,7 +25,7 @@ class TouchPanelSplashController extends Controller
     protected function init(): void
     {
         parent::init();
-        if (!VPXSecurityGuard::isIPAllowed($this->getRequest())) {
+        if (!PanelSecurityGuard::isIPAllowed($this->getRequest())) {
             $this->httpError(403, 'Access denied from this network.');
         }
     }
@@ -33,7 +33,7 @@ class TouchPanelSplashController extends Controller
     public function index(HTTPRequest $request): DBHTMLText
     {
         $branding = PanelSettings::current();
-        $isAuthenticated = VPXSecurityGuard::isAuthenticated($request);
+        $isAuthenticated = PanelSecurityGuard::isAuthenticated($request);
         $nextRoute = '/panel/pin';
 
         if ($isAuthenticated) {
@@ -53,6 +53,6 @@ class TouchPanelSplashController extends Controller
 
     protected function getFirstPermittedUrl(HTTPRequest $request): ?string
     {
-        return VPXSecurityGuard::getFirstPermittedUrl($request);
+        return PanelSecurityGuard::getFirstPermittedUrl($request);
     }
 }

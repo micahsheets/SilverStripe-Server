@@ -26,7 +26,7 @@ class AVBrandingExtension extends Extension
     ];
 
     private static array $defaults = [
-        'PanelTitle' => 'VPX AV MATRIX',
+        'PanelTitle' => 'AV Control',
         'BackgroundOverlayOpacity' => 82,
     ];
 
@@ -44,7 +44,7 @@ class AVBrandingExtension extends Extension
     {
         $fields->addFieldsToTab('Root.TouchPanelBranding', [
             TextField::create('PanelTitle', 'Touch Panel Header Title')
-                ->setDescription('Displayed next to the logo (defaults to "VPX AV MATRIX")'),
+                ->setDescription('Displayed next to the logo (defaults to "AV Control")'),
             UploadField::create('PanelLogo', 'Company Logo')
                 ->setFolderName('av-branding')
                 ->setAllowedFileCategories('image/supported')
@@ -52,7 +52,7 @@ class AVBrandingExtension extends Extension
             UploadField::create('PanelBackground', 'Touch Panel Background Image')
                 ->setFolderName('av-branding')
                 ->setAllowedFileCategories('image/supported')
-                ->setDescription('Optional full-screen wallpaper behind the matrix UI'),
+                ->setDescription('Optional full-screen wallpaper behind the Panel UI'),
             NumericField::create('BackgroundOverlayOpacity', 'Background Dark Overlay % (0-95)')
                 ->setDescription('Keeps buttons readable over bright wallpapers (default: 82)'),
         ]);

@@ -5,8 +5,8 @@ namespace App\Controller;
 use App\Contract\TouchPanelModuleInterface;
 use App\Model\DTXDevice;
 use App\Model\RouteAuditLog;
-use App\Security\VPXPermissionProvider;
-use App\Security\VPXSecurityGuard;
+use App\Security\PanelPermissionProvider;
+use App\Security\PanelSecurityGuard;
 use App\Service\DTXAudioService;
 use App\Service\DTXDiscoveryService;
 use App\Traits\TouchPanelControllerTrait;
@@ -21,7 +21,7 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
 {
     use TouchPanelControllerTrait;
 
-    public const PERM_ACCESS = 'VPX_ACCESS_AUDIO_DTX';
+    public const PERM_ACCESS = 'PANEL_ACCESS_AUDIO_DTX';
 
     private static string $url_segment = 'panel/audio';
 
@@ -75,7 +75,7 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
         parent::init();
 
         if ($this->getRequest()->isPOST()) {
-            if (!VPXSecurityGuard::isValidCSRF($this->getRequest())) {
+            if (!PanelSecurityGuard::isValidCSRF($this->getRequest())) {
                 $this->httpError(403, 'Invalid CSRF token');
             }
         }
@@ -85,7 +85,7 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
     {
         $session = $request->getSession();
 
-        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+        if (!PanelSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             $session->save($request);
             return $this->redirect('/panel/splash');
         }
@@ -94,7 +94,7 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
 
         return $this->customise([
             'Devices' => DTXDevice::get()->filter('Active', 1),
-            'CanAccessDiscovery' => VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY),
+            'CanAccessDiscovery' => PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY),
         ])->renderWith([
             'App\\Controller\\TouchPanelAudio',
             'Page',
@@ -107,7 +107,7 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
             return $this->jsonResponse(['success' => false, 'error' => 'Method Not Allowed'], 405);
         }
 
-        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+        if (!PanelSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             return $this->jsonResponse(['success' => false, 'error' => 'Permission denied'], 403);
         }
 
@@ -171,7 +171,7 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
             return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
         }
 
-        if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+        if (!PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY)) {
             return $this->jsonResponse(['success' => false, 'error' => 'Permission denied.'], 403);
         }
 
@@ -198,7 +198,7 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
             return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
         }
 
-        if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+        if (!PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY)) {
             return $this->jsonResponse(['success' => false, 'error' => 'Permission denied.'], 403);
         }
 

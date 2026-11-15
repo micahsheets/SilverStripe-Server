@@ -30,8 +30,8 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=2">
-    <link rel="stylesheet" href="/css/rodecaster-panel.css?v=2">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=9">
+    <link rel="stylesheet" href="/css/rodecaster-panel.css?v=9">
     <style>
         .rc-mode-controls {
             display: inline-flex;
@@ -87,13 +87,18 @@
         </nav>
     </header>
 
-    <main class="panel-main">
+<main class="panel-main">
         <div class="matrix-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
             <div class="room-tabs" id="rcDeviceTabs"></div>
             <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                 <div class="rc-mode-controls" role="group" aria-label="Switching Mode">
                     <button type="button" id="btnModeStudio" class="rc-mode-btn" onclick="triggerRodeCaster('studio', 0, 'Studio Mode')">STUDIO</button>
                     <button type="button" id="btnModeInstant" class="rc-mode-btn" onclick="triggerRodeCaster('instant', 0, 'Instant Mode')">INSTANT</button>
+                </div>
+                <div class="rc-volume-control">
+                    <label for="rc-master-vol" class="rc-vol-label">HDMI / USB MIX</label>
+                    <input id="rc-master-vol" type="range" min="0" max="100" value="65" class="rc-vol-slider" />
+                    <span id="rc-master-vol-val" class="rc-vol-value">65%</span>
                 </div>
                 <div class="rc-transition-controls" id="rcTransitionControls">
                     <button type="button" class="rc-trans-btn cut" onclick="triggerRodeCaster('cut', 0, 'CUT')">CUT</button>
@@ -149,6 +154,6 @@
 </div>
 
 <div id="toast"></div>
-<script src="/js/panel-rodecaster.js?v=2"></script>
+<script src="/js/panel-rodecaster.js?v=10"></script>
 </body>
 </html>
