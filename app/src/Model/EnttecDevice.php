@@ -56,9 +56,15 @@ class EnttecDevice extends DataObject
         'Title' => 'Controller Name',
         'Location.Title' => 'Room / Zone',
         'IPAddress' => 'IP Address',
+        'UDPPortDisplay' => 'UDP Port',
         'Model' => 'Hardware Model',
         'Universes' => 'Universes',
     ];
+
+    public function getUDPPortDisplay(): string
+    {
+        return (string) $this->UDPPort;
+    }
 
     public function getCMSFields(): FieldList
     {
@@ -69,7 +75,12 @@ class EnttecDevice extends DataObject
                 ->setEmptyString('-- Global / All Rooms --'),
             TextField::create('IPAddress', 'S-Play IP Address')
                 ->setAttribute('placeholder', '192.168.1.50'),
-            NumericField::create('UDPPort', 'UDP Control Port')
+            TextField::create('UDPPort', 'UDP Control Port')
+                ->setAttribute('type', 'number')
+                ->setAttribute('inputmode', 'numeric')
+                ->setAttribute('step', '1')
+                ->setAttribute('min', '1')
+                ->setAttribute('max', '65535')
                 ->setDescription('UDP port for direct commands (default: 5000).'),
             TextField::create('BlackoutCommand', 'Blackout UDP Command')
                 ->setAttribute('placeholder', 'stop')

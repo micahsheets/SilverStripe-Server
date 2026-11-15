@@ -126,7 +126,12 @@ class VPXDevice extends DataObject
                         ->setEmptyString('-- Select a Location --'),
                     TextField::create('IPAddress', 'IP Address')
                         ->setDescription('Static IP address of the VPX unit (e.g., 192.168.1.50)'),
-                    NumericField::create('UDPPort', 'UDP Control Port')
+                    TextField::create('UDPPort', 'UDP Control Port')
+                        ->setAttribute('type', 'number')
+                        ->setAttribute('inputmode', 'numeric')
+                        ->setAttribute('step', '1')
+                        ->setAttribute('min', '1')
+                        ->setAttribute('max', '65535')
                         ->setDescription('Default Aurora VPX API port is 6970'),
                     TextField::create('Hostname', 'VPX Hostname')
                         ->setDescription('Must match the exact Host Name configured on the VPX web interface')

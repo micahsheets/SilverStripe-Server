@@ -2,6 +2,8 @@
 
 namespace App\Model;
 
+use SilverStripe\Forms\FieldList;
+use SilverStripe\Forms\TextField;
 use SilverStripe\ORM\DataObject;
 
 class DTXDevice extends DataObject
@@ -28,9 +30,32 @@ class DTXDevice extends DataObject
     private static $summary_fields = array(
         'Title' => 'Title',
         'IPAddress' => 'IP Address',
+        'ControlPortDisplay' => 'Control Port',
         'DeviceModel' => 'Model',
         'Location.Title' => 'Location',
         'Active.Nice' => 'Active'
     );
 
+    public function getControlPortDisplay(): string
+    {
+        return (string) $this->ControlPort;
+    }
+
+    public function getCMSFields(): FieldList
+    {
+        $fields = parent::getCMSFields();
+
+        $fields->replaceField(
+            'ControlPort',
+            TextField::create('ControlPort', 'Control Port')
+                ->setAttribute('type', 'number')
+                ->setAttribute('inputmode', 'numeric')
+                ->setAttribute('step', '1')
+                ->setAttribute('min', '1')
+                ->setAttribute('max', '65535')
+                ->setDescription('UDP/TCP control port (default: 5000)')
+        );
+
+        return $fields;
+    }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Model;
 
+use SilverStripe\Forms\FieldList;
+use SilverStripe\Forms\TextField;
 use SilverStripe\ORM\DataObject;
 
 /**
@@ -51,10 +53,33 @@ class RodeCasterDevice extends DataObject
     private static array $summary_fields = [
         'Title' => 'Name',
         'IPAddress' => 'IP Address',
-        'Port' => 'OSC TCP Port',
+        'PortDisplay' => 'OSC TCP Port',
     ];
 
     private static string $default_sort = 'SortOrder ASC, Title ASC';
+
+    public function getPortDisplay(): string
+    {
+        return (string) $this->Port;
+    }
+
+    public function getCMSFields(): FieldList
+    {
+        $fields = parent::getCMSFields();
+
+        $fields->replaceField(
+            'Port',
+            TextField::create('Port', 'OSC TCP Port')
+                ->setAttribute('type', 'number')
+                ->setAttribute('inputmode', 'numeric')
+                ->setAttribute('step', '1')
+                ->setAttribute('min', '1')
+                ->setAttribute('max', '65535')
+                ->setDescription('OSC TCP Port (default: 10024)')
+        );
+
+        return $fields;
+    }
 
     public function getButtonList(string $type): array
     {
