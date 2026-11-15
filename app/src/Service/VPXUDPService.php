@@ -12,13 +12,12 @@ class VPXUDPService
 {
     use Injectable;
 
-        public function sendCommand(VPXDevice $device, string $command, bool $logAsRawCommand = true): bool
+    public function sendCommand(VPXDevice $device, string $command, bool $logAsRawCommand = true): bool
     {
         $ip = trim((string) $device->IPAddress);
         $port = (int) ($device->UDPPort ?: 6970);
         $cleanCmd = rtrim($command, "\r\n");
 
-        // Convert \xHH hex escape sequences (for RS-232 serial strings like \x02PON\x03) into raw bytes
         $binaryCmd = preg_replace_callback(
             '/\\\\x([0-9A-Fa-f]{2})/',
             fn(array $m) => chr((int) hexdec($m[1])),
@@ -31,21 +30,51 @@ class VPXUDPService
             }
 
             $payload = $binaryCmd . "\r";
-            $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-            if ($socket === false) {
-                throw new RuntimeException('Unable to create UDP socket: ' . socket_strerror(socket_last_error()));
-            }
 
-            try {
-                socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 1, 'usec' => 0]);
-                $bytesSent = @socket_sendto($socket, $payload, strlen($payload), 0, $ip, $port);
-                if ($bytesSent === false) {
+            $fp = @fsockopen($ip, $port, $errno, $errstr, 0.5);
+            if (is_resource($fp)) {
+                stream_set_timeout($fp, 0, 500_000);
+                if (@fwrite($fp, $payload) === false) {
+                    fclose($fp);
+                    throw new RuntimeException("Failed writing command to {$ip}:{$port}.");
+                }
+
+                $raw = '';
+                $deadline = microtime(true) + 0.5;
+                while (!feof($fp) && microtime(true) < $deadline) {
+                    $chunk = @fread($fp, 1024);
+                    if ($chunk !== false && $chunk !== '') {
+                        $raw .= $chunk;
+                        if (str_contains($raw, '}')) {
+                            break;
+                        }
+                    } else {
+                        usleep(10_000);
+                    }
+                }
+                fclose($fp);
+
+                $json = json_decode(trim($raw), true);
+                if (is_array($json) && ($json['status'] ?? '') === 'ERROR') {
                     throw new RuntimeException(
-                        sprintf('Failed sending UDP to %s:%d - %s', $ip, $port, socket_strerror(socket_last_error($socket)))
+                        sprintf('VPX rejected "%s": %s', $cleanCmd, (string) ($json['error'] ?? 'UNKNOWN_ERROR'))
                     );
                 }
-            } finally {
-                socket_close($socket);
+            } else {
+                $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+                if ($socket === false) {
+                    throw new RuntimeException('Unable to create UDP socket: ' . socket_strerror(socket_last_error()));
+                }
+                try {
+                    socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 1, 'usec' => 0]);
+                    if (@socket_sendto($socket, $payload, strlen($payload), 0, $ip, $port) === false) {
+                        throw new RuntimeException(
+                            sprintf('Failed sending UDP to %s:%d - %s', $ip, $port, socket_strerror(socket_last_error($socket)))
+                        );
+                    }
+                } finally {
+                    socket_close($socket);
+                }
             }
 
             if ($logAsRawCommand) {
@@ -61,7 +90,6 @@ class VPXUDPService
         }
     }
 
-
     public function route(VPXDevice $decoder, ?VPXDevice $encoder, string $streamType = 'all'): array
     {
         if ($decoder->Mode !== VPXDevice::MODE_DECODER) {
@@ -73,19 +101,22 @@ class VPXUDPService
             throw new RuntimeException("Invalid stream type '{$streamType}'.");
         }
 
-        $command = $encoder !== null
-            ? $decoder->buildJoinCommand($encoder, $streamType)
-            : sprintf("leave %s\r", $streamType);
-
         if ($encoder !== null && $encoder->Mode !== VPXDevice::MODE_ENCODER) {
             throw new RuntimeException("Source device '{$encoder->Title}' is not an Encoder.");
         }
 
+        $commands = $encoder !== null
+            ? (array) $decoder->buildJoinCommand($encoder, $streamType)
+            : (array) $decoder->buildLeaveCommand($streamType);
+
+        $loggedCommands = implode(' ; ', array_map('trim', $commands));
         $sourceLabel = $encoder ? $encoder->Title : 'Blank / Unsubscribed';
         $summary = sprintf('%s -> %s (%s)', $sourceLabel, $decoder->Title, strtoupper($streamType));
 
         try {
-            $this->sendCommand($decoder, $command, false);
+            foreach ($commands as $cmd) {
+                $this->sendCommand($decoder, $cmd, false);
+            }
 
             $encoderID = $encoder ? (int) $encoder->ID : 0;
             if ($streamType === 'all' || $streamType === 'video') {
@@ -99,17 +130,17 @@ class VPXUDPService
             }
             $decoder->write();
 
-            RouteAuditLog::record('Route', $summary, trim($command), true, null, $decoder, $encoder);
+            RouteAuditLog::record('Route', $summary, $loggedCommands, true, null, $decoder, $encoder);
 
             return [
                 'decoder' => $decoder->Title,
                 'decoderIP' => $decoder->IPAddress,
                 'encoder' => $encoder ? $encoder->Title : null,
                 'streamType' => $streamType,
-                'commandSent' => trim($command),
+                'commandSent' => $loggedCommands,
             ];
         } catch (RuntimeException $e) {
-            RouteAuditLog::record('Route', $summary, trim($command), false, $e->getMessage(), $decoder, $encoder);
+            RouteAuditLog::record('Route', $summary, $loggedCommands, false, $e->getMessage(), $decoder, $encoder);
             throw $e;
         }
     }
@@ -153,7 +184,7 @@ class VPXUDPService
         ];
     }
 
-        /**
+    /**
      * Fast non-blocking TCP reachability check against the VPX unit's web/control port (default 80).
      */
     public function isDeviceOnline(VPXDevice $device, int $probePort = 80, float $timeoutSeconds = 0.15): bool
@@ -173,5 +204,4 @@ class VPXUDPService
 
         return false;
     }
-
 }

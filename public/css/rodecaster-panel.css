@@ -1,0 +1,99 @@
+.rc-button-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.rc-pad-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    min-height: 76px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(15, 23, 42, 0.65);
+    color: #f8fafc;
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.rc-pad-btn:active {
+    transform: scale(0.97);
+}
+
+.rc-pad-btn.active {
+    border-color: #38bdf8;
+    background: rgba(14, 165, 233, 0.22);
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.rc-pad-btn.overlay-btn.active {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.22);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35);
+}
+
+.rc-pad-index {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    opacity: 0.65;
+}
+
+.rc-pad-label {
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 6px;
+    line-height: 1.25;
+}
+
+body[data-theme="light"] .rc-pad-btn {
+    background: rgba(255, 255, 255, 0.9);
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.15);
+}
+
+body[data-theme="light"] .rc-pad-btn.active {
+    background: rgba(14, 165, 233, 0.14);
+    border-color: #0284c7;
+}
+.rc-transition-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.rc-trans-btn {
+    min-width: 96px;
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-size: 0.98rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    transition: transform 0.08s ease, filter 0.15s ease;
+}
+
+.rc-trans-btn:active {
+    transform: scale(0.96);
+}
+
+.rc-trans-btn.cut {
+    background: linear-gradient(135deg, #dc2626, #991b1b);
+    border-color: rgba(248, 113, 113, 0.65);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+}
+
+.rc-trans-btn.auto {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    border-color: rgba(56, 189, 248, 0.65);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+}

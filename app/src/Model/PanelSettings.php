@@ -2,18 +2,18 @@
 
 namespace App\Model;
 
+use App\Form\SafeCheckboxSetField;
 use App\Security\VPXPermissionProvider;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\Image;
 use SilverStripe\Core\Validation\ValidationResult;
-use SilverStripe\Forms\CheckboxSetField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\NumericField;
-use SilverStripe\Forms\PasswordField;
 use SilverStripe\Forms\Tab;
 use SilverStripe\Forms\TabSet;
 use SilverStripe\Forms\TextField;
 use SilverStripe\ORM\DataObject;
+use SilverStripe\Forms\DropdownField;
 
 /**
  * @property string $PanelTitle
@@ -30,12 +30,13 @@ class PanelSettings extends DataObject
 {
     private static string $table_name = 'PanelSettings';
 
-    private static string $singular_name = 'Panel Branding & Security';
+    private static string $singular_name = 'Panel Settings';
 
-    private static string $plural_name = 'Panel Branding & Security';
+    private static string $plural_name = 'Panel Settings';
 
     private static array $db = [
         'PanelTitle' => 'Varchar(100)',
+        'PanelTheme' => "Enum('dark,light', 'dark')",
         'BackgroundOverlayOpacity' => 'Int',
         'BasicPanelPIN' => 'Varchar(255)',
         'BasicPINPermissions' => 'Text',
@@ -43,12 +44,17 @@ class PanelSettings extends DataObject
 
     private static array $defaults = [
         'PanelTitle' => 'VPX AV MATRIX',
+        'PanelTheme' => 'dark',
         'BackgroundOverlayOpacity' => 82,
     ];
 
     private static array $has_one = [
         'PanelLogo' => Image::class,
         'PanelBackground' => Image::class,
+    ];
+
+    private static array $many_many = [
+        'ActiveModules' => SystemModule::class,
     ];
 
     private static array $owns = [
@@ -81,12 +87,23 @@ class PanelSettings extends DataObject
             ? '•••• (Basic PIN is set — enter new 4-8 digits to change)'
             : 'Enter 4-8 numeric digits';
 
+        $moduleOptions = SystemModule::get()->map('ID', 'Title')->toArray();
+        $permissionOptions = SystemModule::get()->map('PermissionCode', 'Title')->toArray();
+
         return FieldList::create(
             TabSet::create(
                 'Root',
                 Tab::create(
                     'Main',
                     TextField::create('PanelTitle', 'Touch Panel Header Title'),
+                    DropdownField::create(
+                        'PanelTheme',
+                        'Touch Panel Color Theme',
+                        array(
+                            'dark' => 'Dark Theme (Default)',
+                            'light' => 'Light Theme',
+                        )
+                    ),
                     UploadField::create('PanelLogo', 'Company Logo')
                         ->setFolderName('av-branding')
                         ->setAllowedFileCategories('image/supported'),
@@ -96,20 +113,24 @@ class PanelSettings extends DataObject
                     NumericField::create('BackgroundOverlayOpacity', 'Background Dark Overlay % (0-95)')
                 ),
                 Tab::create(
+                    'Modules',
+                    SafeCheckboxSetField::create(
+                        'ActiveModules',
+                        'Enabled System Modules',
+                        $moduleOptions
+                    )->setDescription('Select which control modules should appear on the touch panel navigation for this installation.')
+                ),
+                Tab::create(
                     'Security',
                     TextField::create('NewBasicPanelPIN', 'Basic Shared Login PIN')
                         ->setValue('')
+                        ->setAttribute('placeholder', $placeholder)
                         ->setAttribute('autocomplete', 'one-time-code')
                         ->setAttribute('style', '-webkit-text-security: disc;'),
-                    CheckboxSetField::create(
-                        'BasicPINPermissionsList',
+                    SafeCheckboxSetField::create(
+                        'BasicPINPermissions',
                         'Interfaces Accessible via Basic Shared PIN',
-                        [
-                            VPXPermissionProvider::PERM_ACCESS_MATRIX => 'Video Matrix Control Panel',
-                            VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX => 'Aurora DTX Audio Control',
-                            VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC => 'Enttec Lighting Control',
-                            VPXPermissionProvider::PERM_ACCESS_DISCOVERY => 'Hardware Discovery & Network Scanner',
-                        ]
+                        $permissionOptions
                     )->setDescription('Select which control interfaces can be unlocked using the Basic Shared PIN.')
                 )
             )
@@ -120,25 +141,6 @@ class PanelSettings extends DataObject
     {
         $trimmed = trim((string) $value);
         $this->rawBasicPIN = $trimmed !== '' ? $trimmed : null;
-    }
-
-    public function getBasicPINPermissionsList(): array
-    {
-        if (empty($this->BasicPINPermissions)) {
-            return [VPXPermissionProvider::PERM_ACCESS_MATRIX];
-        }
-
-        $decoded = json_decode($this->BasicPINPermissions, true);
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    public function setBasicPINPermissionsList($value): void
-    {
-        if (is_array($value)) {
-            $this->BasicPINPermissions = json_encode(array_values($value));
-        } elseif (empty($value)) {
-            $this->BasicPINPermissions = json_encode([]);
-        }
     }
 
     public function validate(): ValidationResult
@@ -163,6 +165,10 @@ class PanelSettings extends DataObject
             $this->BasicPanelPIN = password_hash($this->rawBasicPIN, PASSWORD_DEFAULT);
             $this->rawBasicPIN = null;
         }
+
+        if (empty($this->BasicPINPermissions)) {
+            $this->BasicPINPermissions = json_encode(array(VPXPermissionProvider::PERM_ACCESS_MATRIX));
+        }
     }
 
     public function verifyBasicPIN(string $pin): bool
@@ -176,10 +182,37 @@ class PanelSettings extends DataObject
 
     public function basicPINAllows(string $permissionCode): bool
     {
-        return in_array($permissionCode, $this->getBasicPINPermissionsList(), true);
+        if (empty($this->BasicPINPermissions)) {
+            return in_array($permissionCode, array(
+                VPXPermissionProvider::PERM_ACCESS_MATRIX,
+                VPXPermissionProvider::PERM_ACCESS_DISCOVERY
+            ), true);
+        }
+
+        $decoded = json_decode($this->BasicPINPermissions, true);
+        if (!is_array($decoded)) {
+            return false;
+        }
+
+        // Discovery shares access with Video Matrix on the Basic PIN
+        if ($permissionCode === VPXPermissionProvider::PERM_ACCESS_DISCOVERY) {
+            return in_array(VPXPermissionProvider::PERM_ACCESS_MATRIX, $decoded, true);
+        }
+
+        return in_array($permissionCode, $decoded, true);
     }
 
-    public function canCreate($member = null, $context = []): bool
+    public static function isModuleRouteEnabled(string $route): bool
+    {
+        $settings = self::current();
+        $cleanRoute = '/' . ltrim($route, '/');
+
+        return $settings->ActiveModules()
+            ->filter('Route', $cleanRoute)
+            ->exists();
+    }
+
+    public function canCreate($member = null, $context = array()): bool
     {
         return self::get()->count() === 0 && parent::canCreate($member, $context);
     }

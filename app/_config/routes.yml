@@ -3,11 +3,19 @@ Name: approutes
 After:
   - '#rootroutes'
   - '#coreroutes'
+  - '#cmsroutes'
 ---
 SilverStripe\Control\Director:
   rules:
-    '': 'App\Controller\TouchPanelController'
+    '': 'App\Controller\TouchPanelSplashController'
+    'panel/splash': 'App\Controller\TouchPanelSplashController'
     'panel/lighting//$Action/$ID': 'App\Controller\EnttecController'
-    'panel//$Action/$ID': 'App\Controller\TouchPanelController'
+    'panel/audio//$Action/$ID': 'App\Controller\DTXController'
+    'panel/camera//$Action/$ID': 'App\Controller\ViscaController'
+    'panel/rodecaster//$Action/$ID': 'App\Controller\RodeCasterController'
+    'panel//$Action/$ID': 'App\Controller\VPXController'
     'api/vpx//$Action/$ID': 'App\Controller\UDPController'
+    'api/rodecaster//$Action/$ID': 'App\Controller\RodeCasterController'
     'api/enttec//$Action/$ID': 'App\Controller\EnttecController'
+    'api/dtx//$Action/$ID': 'App\Controller\DTXController'
+    'api/visca//$Action/$ID': 'App\Controller\ViscaController'

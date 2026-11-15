@@ -120,6 +120,7 @@
             : 'S-Play SP1: Full Slot Creation, Unlimited Dynamic Capture & Deletion Enabled';
 
         renderUniverseCheckboxes(dev.universes);
+        setAdvancedOpen(false);
         await loadPlaylists();
     }
 
@@ -301,6 +302,9 @@
 
     document.getElementById('btn-toggle-recorder').addEventListener('click', () => {
         drawerEl.classList.toggle('open');
+        if (!drawerEl.classList.contains('open')) {
+            setAdvancedOpen(false);
+        }
     });
 
     document.getElementById('btn-blackout').addEventListener('click', async () => {
@@ -476,6 +480,23 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    const advBtn = document.getElementById('btn-toggle-advanced');
+    const advPanel = document.getElementById('enttec-advanced-options');
+
+    function setAdvancedOpen(open) {
+        if (!advBtn || !advPanel) return;
+        advPanel.style.display = open ? 'block' : 'none';
+        advBtn.classList.toggle('active', open);
+        advBtn.setAttribute('aria-expanded', String(open));
+    }
+
+    if (advBtn && advPanel) {
+        advBtn.addEventListener('click', () => {
+            const isOpen = advPanel.style.display !== 'none';
+            setAdvancedOpen(!isOpen);
+        });
     }
 
     init();

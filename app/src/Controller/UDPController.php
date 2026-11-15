@@ -21,7 +21,7 @@ class UDPController extends Controller
 {
     private static string $url_segment = 'api/vpx';
 
-    private static array $allowed_actions = ['status', 'route', 'preset', 'command', 'ping', 'discover', 'import'];
+    private static array $allowed_actions = ['status', 'route', 'preset', 'command', 'ping', 'discover', 'import', 'preview'];
 
     private VPXUDPService $udpService;
 
@@ -31,7 +31,7 @@ class UDPController extends Controller
         $this->udpService = VPXUDPService::singleton();
     }
 
-    protected function init(): void
+protected function init(): void
     {
         parent::init();
         $request = $this->getRequest();
@@ -39,6 +39,12 @@ class UDPController extends Controller
         if (!VPXSecurityGuard::isIPAllowed($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'IP not allowed.'], 403));
         }
+
+        $action = strtolower((string) $request->param('Action'));
+        if ($action === 'preview') {
+            return;
+        }
+
         if (!VPXSecurityGuard::isAuthenticated($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Auth required.'], 401));
         }
@@ -47,7 +53,6 @@ class UDPController extends Controller
         }
 
         // Enforce action-specific interface permissions
-        $action = (string) $request->param('Action');
         $requiredPermission = in_array($action, ['discover', 'import'], true)
             ? VPXPermissionProvider::PERM_ACCESS_DISCOVERY
             : VPXPermissionProvider::PERM_ACCESS_MATRIX;
@@ -212,7 +217,78 @@ class UDPController extends Controller
         }
     }
 
-    // Keep your existing import(HTTPRequest $request): HTTPResponse method here
+public function import(HTTPRequest $request): HTTPResponse
+{
+    if (!$request->isPOST()) {
+        return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
+    }
+
+    try {
+        $data = $this->parseRequestData($request);
+        $devices = $data['devices'] ?? [];
+        if (!is_array($devices) || count($devices) === 0) {
+            return $this->jsonResponse(['success' => false, 'error' => 'No devices provided.'], 400);
+        }
+
+        $created = 0;
+        $updated = 0;
+
+        foreach ($devices as $item) {
+            $ip = trim((string) ($item['ip'] ?? ''));
+            if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+                continue;
+            }
+
+            $device = VPXDevice::get()->filter('IPAddress', $ip)->first();
+            $isNew = !$device;
+            if ($isNew) {
+                $device = VPXDevice::create();
+                $device->IPAddress = $ip;
+            }
+
+            $hostname = trim((string) ($item['hostname'] ?? ''));
+            if ($hostname === '') {
+                $hostname = 'VPX-' . str_replace('.', '-', $ip);
+            }
+
+            $title = trim((string) ($item['title'] ?? ''));
+            if ($title === '') {
+                $title = $hostname;
+            }
+
+            $mode = (string) ($item['mode'] ?? VPXDevice::MODE_DECODER);
+            if (!in_array($mode, [VPXDevice::MODE_ENCODER, VPXDevice::MODE_DECODER], true)) {
+                $mode = VPXDevice::MODE_DECODER;
+            }
+
+            $device->Title = $title;
+            $device->Hostname = $hostname;
+            $device->Mode = $mode;
+            $device->UDPPort = (int) ($item['udpPort'] ?? 6970) ?: 6970;
+            $device->MACAddress = trim((string) ($item['mac'] ?? ''));
+            $device->LocationID = (int) ($item['locationId'] ?? 0);
+
+            $device->write();
+
+            if ($isNew) {
+                $created++;
+            } else {
+                $updated++;
+            }
+        }
+
+        return $this->jsonResponse([
+            'success' => true,
+            'created' => $created,
+            'updated' => $updated,
+        ]);
+    } catch (Throwable $e) {
+        return $this->jsonResponse([
+            'success' => false,
+            'error' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
+        ], 500);
+    }
+}
 
     private function parseRequestData(HTTPRequest $request): array
     {
@@ -230,4 +306,106 @@ class UDPController extends Controller
             ->setStatusCode($statusCode)
             ->addHeader('Content-Type', 'application/json');
     }
+
+    public function preview(HTTPRequest $request): HTTPResponse
+    {
+        $device = VPXDevice::get()->byID((int) $request->param('ID'));
+        if (!$device || !filter_var($device->IPAddress, FILTER_VALIDATE_IP)) {
+            return HTTPResponse::create('', 404);
+        }
+
+        $ip = trim((string) $device->IPAddress);
+        $port = (int) (getenv('VPX_PREVIEW_PORT') ?: 8080);
+
+        $fp = @fsockopen($ip, $port, $errno, $errstr, 0.4);
+        if (!is_resource($fp)) {
+            return HTTPResponse::create('', 204);
+        }
+
+        stream_set_timeout($fp, 0, 500_000);
+        fwrite($fp, "GET /?action=snapshot HTTP/1.0\r\nHost: {$ip}:{$port}\r\n\r\n");
+        $raw = stream_get_contents($fp, 524288);
+        fclose($fp);
+
+        if (!$raw || !preg_match('/^HTTP\/1\.[01]\s+200\b/i', $raw) || !str_contains($raw, "\r\n\r\n")) {
+            return HTTPResponse::create('', 204);
+        }
+
+        [, $jpeg] = explode("\r\n\r\n", $raw, 2);
+        if (!str_starts_with($jpeg, "\xFF\xD8")) {
+            return HTTPResponse::create('', 204);
+        }
+
+        return HTTPResponse::create($jpeg, 200)
+            ->addHeader('Content-Type', 'image/jpeg')
+            ->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    }
+
+private function fetchDeviceSnapshot(string $ip, string $uri, string $user, string $pass): ?string
+{
+    $fp = @fsockopen($ip, 80, $errno, $errstr, 0.4);
+    if (!is_resource($fp)) {
+        return null;
+    }
+    stream_set_timeout($fp, 0, 500_000);
+    fwrite($fp, "GET {$uri} HTTP/1.0\r\nHost: {$ip}\r\n\r\n");
+    $raw = stream_get_contents($fp, 262144);
+    fclose($fp);
+
+    if (!$raw) {
+        return null;
+    }
+
+    // Unauthenticated 200 OK
+    if (preg_match('/^HTTP\/1\.[01]\s+200\b/i', $raw) && str_contains($raw, "\r\n\r\n")) {
+        [, $body] = explode("\r\n\r\n", $raw, 2);
+        return strlen($body) > 100 ? $body : null;
+    }
+
+    // HTTP Digest challenge
+    if (!preg_match('/WWW-Authenticate:\s*Digest\s+([^\r\n]+)/i', $raw, $m)) {
+        return null;
+    }
+
+    preg_match_all('/(\w+)="([^"]+)"/', $m[1], $pairs, PREG_SET_ORDER);
+    $params = array_column($pairs, 2, 1);
+    if (empty($params['realm']) || empty($params['nonce'])) {
+        return null;
+    }
+
+    $nc = '00000001';
+    $cnonce = bin2hex(random_bytes(8));
+    $qop = $params['qop'] ?? 'auth';
+    $ha1 = md5("{$user}:{$params['realm']}:{$pass}");
+    $ha2 = md5("GET:{$uri}");
+    $responseHash = md5("{$ha1}:{$params['nonce']}:{$nc}:{$cnonce}:{$qop}:{$ha2}");
+
+    $authHeader = sprintf(
+        'Digest username="%s", realm="%s", nonce="%s", uri="%s", qop=%s, nc=%s, cnonce="%s", response="%s"',
+        $user,
+        $params['realm'],
+        $params['nonce'],
+        $uri,
+        $qop,
+        $nc,
+        $cnonce,
+        $responseHash
+    );
+
+    $fp2 = @fsockopen($ip, 80, $errno, $errstr, 0.4);
+    if (!is_resource($fp2)) {
+        return null;
+    }
+    stream_set_timeout($fp2, 0, 600_000);
+    fwrite($fp2, "GET {$uri} HTTP/1.0\r\nHost: {$ip}\r\nAuthorization: {$authHeader}\r\n\r\n");
+    $authedRaw = stream_get_contents($fp2, 262144);
+    fclose($fp2);
+
+    if ($authedRaw && preg_match('/^HTTP\/1\.[01]\s+200\b/i', $authedRaw) && str_contains($authedRaw, "\r\n\r\n")) {
+        [, $body] = explode("\r\n\r\n", $authedRaw, 2);
+        return strlen($body) > 100 ? $body : null;
+    }
+
+    return null;
+}
 }

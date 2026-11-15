@@ -57,15 +57,14 @@ class EnttecController extends Controller
             if ($isApi) {
                 throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Auth required.'], 401));
             }
-            $this->redirect('/panel');
-            return;
+            throw new HTTPResponse_Exception($this->redirect('/panel/splash'));
         }
 
         if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC)) {
             if ($isApi) {
                 throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Lighting permission required.'], 403));
             }
-            $this->httpError(403, 'You do not have permission to access Enttec Lighting Control.');
+            throw new HTTPResponse_Exception($this->redirect('/panel/pin?err=denied'));
         }
 
         if ($isApi && $request->isPOST() && !VPXSecurityGuard::isValidCSRF($request)) {
@@ -75,8 +74,11 @@ class EnttecController extends Controller
 
     public function index(HTTPRequest $request): DBHTMLText
     {
+        $branding = PanelSettings::current();
+
         return $this->customise([
-            'SiteConfig' => PanelSettings::current(),
+            'PanelSettings' => $branding,
+            'SiteConfig' => $branding,
             'CSRFToken' => SecurityToken::inst()->getValue(),
         ])->renderWith(['App/Controller/TouchPanelLighting']);
     }
@@ -143,6 +145,7 @@ class EnttecController extends Controller
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
+
     public function blackout(HTTPRequest $request): HTTPResponse
     {
         if (!$request->isPOST()) {

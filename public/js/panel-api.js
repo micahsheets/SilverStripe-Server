@@ -105,6 +105,25 @@ async function routeToSelected(encoderId, encoderTitle) {
         : showToast('Routed ' + encoderTitle + ' (' + state.activeStreamType.toUpperCase() + ') to ' + targets.length + ' display(s)');
 }
 
+async function disconnectDecoder(decoderId, decoderTitle) {
+    try {
+        const res = await apiPost('/api/vpx/route', {
+            decoder_id: decoderId,
+            encoder_id: 0,
+            stream_type: state.activeStreamType
+        });
+        const data = await parseJsonSafe(res);
+        await loadStatus();
+        if (data.success) {
+            showToast(decoderTitle + ': Disconnected (' + state.activeStreamType.toUpperCase() + ')');
+        } else {
+            showToast('Disconnect Error: ' + (data.error || 'Failed'), true);
+        }
+    } catch (e) {
+        showToast(e.message || 'Failed to disconnect display', true);
+    }
+}
+
 async function sendCEC(deviceId, cecCommand, deviceTitle) {
     try {
         const res = await apiPost('/api/vpx/command', { device_id: deviceId, command: cecCommand });
@@ -164,4 +183,3 @@ async function powerAllVisibleDisplays(turnOn) {
         showToast('Sent Power ' + actionLabel + ' to ' + visibleDecoders.length + ' display(s) (' + roomLabel + ')');
     }
 }
-

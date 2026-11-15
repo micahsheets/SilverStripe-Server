@@ -1,3 +1,5 @@
+const previewFrameCache = new Map();
+
 function getLocationName(locationId) {
     const loc = state.locations.find(l => l.id === locationId);
     return loc ? loc.title : 'Unassigned';
@@ -22,6 +24,52 @@ function createPingBadge(deviceId) {
 
     badge.append(dot, label);
     return badge;
+}
+
+function loadPreviewFrame(img, deviceId) {
+    if (!deviceId) return;
+    const url = '/api/vpx/preview/' + deviceId + '?t=' + Date.now();
+    const preloader = new Image();
+
+    preloader.onload = () => {
+        previewFrameCache.set(deviceId, preloader.src);
+        if (img.isConnected) {
+            img.src = preloader.src;
+            img.classList.add('is-loaded');
+        }
+    };
+
+    preloader.onerror = () => {
+        if (img.isConnected && !previewFrameCache.has(deviceId)) {
+            img.classList.remove('is-loaded');
+        }
+    };
+
+    preloader.src = url;
+}
+
+function createPreviewBox(deviceId, deviceTitle) {
+    const wrap = document.createElement('div');
+    wrap.className = 'vpx-preview-wrap';
+
+    const img = document.createElement('img');
+    img.className = 'vpx-preview-img';
+    img.dataset.deviceId = String(deviceId);
+    img.alt = (deviceTitle || 'Device') + ' live preview';
+
+    if (previewFrameCache.has(deviceId)) {
+        img.src = previewFrameCache.get(deviceId);
+        img.classList.add('is-loaded');
+    } else {
+        loadPreviewFrame(img, deviceId);
+    }
+
+    const placeholder = document.createElement('span');
+    placeholder.className = 'vpx-preview-placeholder';
+    placeholder.textContent = state.onlineMap[deviceId] === false ? 'Offline' : 'No Signal';
+
+    wrap.append(img, placeholder);
+    return wrap;
 }
 
 
@@ -97,6 +145,8 @@ function renderDecoders() {
         const card = document.createElement('div');
         card.className = 'decoder-card' + (state.selectedDecoderIds.has(dec.id) ? ' selected' : '');
 
+        const previewBox = createPreviewBox(dec.id, dec.title);
+
         const topWrap = document.createElement('div');
         const headerRow = document.createElement('div');
         headerRow.className = 'device-header-row';
@@ -128,7 +178,9 @@ function renderDecoders() {
 
         const cecRow = document.createElement('div');
         cecRow.className = 'cec-controls';
+
         const onBtn = document.createElement('button');
+        onBtn.type = 'button';
         onBtn.className = 'cec-btn on';
         onBtn.textContent = 'Display ON';
         onBtn.onclick = (e) => {
@@ -137,15 +189,28 @@ function renderDecoders() {
         };
 
         const offBtn = document.createElement('button');
+        offBtn.type = 'button';
         offBtn.className = 'cec-btn off';
         offBtn.textContent = 'Display OFF';
         offBtn.onclick = (e) => {
             e.stopPropagation();
             sendCEC(dec.id, dec.powerOffCommand || 'cec power off', dec.title);
         };
-        cecRow.append(onBtn, offBtn);
 
-        card.append(topWrap, badgesRow, cecRow);
+        const disconnectBtn = document.createElement('button');
+        disconnectBtn.type = 'button';
+        disconnectBtn.className = 'cec-btn disconnect';
+        disconnectBtn.textContent = 'Disconnect';
+        disconnectBtn.title = 'Disconnect ' + state.activeStreamType.toUpperCase() + ' stream';
+        disconnectBtn.disabled = !dec.videoEncoderId && !dec.audioEncoderId;
+        disconnectBtn.onclick = (e) => {
+            e.stopPropagation();
+            disconnectDecoder(dec.id, dec.title);
+        };
+
+        cecRow.append(onBtn, offBtn, disconnectBtn);
+
+        card.append(previewBox, topWrap, badgesRow, cecRow);
         card.onclick = () => {
             state.selectedDecoderIds.has(dec.id) ? state.selectedDecoderIds.delete(dec.id) : state.selectedDecoderIds.add(dec.id);
             render();
@@ -171,6 +236,9 @@ function renderEncoders() {
     state.encoders.forEach(enc => {
         const btn = document.createElement('button');
         btn.className = 'encoder-btn' + (activeEncoderId === enc.id ? ' active-for-selected' : '');
+
+        const previewBox = createPreviewBox(enc.id, enc.title);
+
         const headerRow = document.createElement('div');
         headerRow.className = 'device-header-row';
         const roomEl = document.createElement('div');
@@ -182,24 +250,11 @@ function renderEncoders() {
         nameEl.className = 'device-name';
         nameEl.style.margin = '4px 0 0 0';
         nameEl.textContent = enc.title;
-        btn.append(headerRow, nameEl);
+        btn.append(previewBox, headerRow, nameEl);
 
         btn.onclick = () => routeToSelected(enc.id, enc.title);
         container.appendChild(btn);
     });
-
-    const blankBtn = document.createElement('button');
-    blankBtn.className = 'encoder-btn blank-btn';
-    const blankSub = document.createElement('div');
-    blankSub.className = 'device-room';
-    blankSub.textContent = 'Disconnect (' + state.activeStreamType.toUpperCase() + ')';
-    const blankTitle = document.createElement('div');
-    blankTitle.className = 'device-name';
-    blankTitle.style.margin = '4px 0 0 0';
-    blankTitle.textContent = 'Blank / Leave Stream';
-    blankBtn.append(blankSub, blankTitle);
-    blankBtn.onclick = () => routeToSelected(0, 'Blank');
-    container.appendChild(blankBtn);
 }
 
 function selectAllVisibleDisplays() {
@@ -223,6 +278,16 @@ function render() {
     renderEncoders();
 }
 
+function refreshAllPreviews() {
+    if (document.hidden) return;
+    document.querySelectorAll('img.vpx-preview-img').forEach((img, idx) => {
+        const deviceId = Number(img.dataset.deviceId);
+        if (!deviceId) return;
+        setTimeout(() => loadPreviewFrame(img, deviceId), idx * 150);
+    });
+}
+
 loadStatus().then(() => loadPingStatus());
 setInterval(loadStatus, 10000);
 setInterval(loadPingStatus, 15000);
+setInterval(refreshAllPreviews, 3000);

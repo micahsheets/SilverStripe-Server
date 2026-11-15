@@ -185,8 +185,42 @@ class VPXDevice extends DataObject
         return $result;
     }
 
-    public function buildJoinCommand(VPXDevice $encoder, string $streamType = 'all'): string
+    /**
+     * Build the VPX TCP 6970 join command(s) to subscribe this decoder to an encoder.
+     *
+     * @return string[]
+     */
+    public function buildJoinCommand(VPXDevice $encoder, string $streamType = 'all'): array
     {
-        return sprintf("join %s %s\r", trim($encoder->Hostname), $streamType);
+        $host = trim((string) ($encoder->Hostname ?: $encoder->IPAddress));
+        $type = strtolower(trim($streamType));
+
+        if ($type === 'all') {
+            return [
+                "join video {$host}",
+                "join audio {$host}",
+            ];
+        }
+
+        return ["join {$type} {$host}"];
+    }
+
+    /**
+     * Build the VPX TCP 6970 leave command(s) to unsubscribe this decoder from a stream.
+     *
+     * @return string[]
+     */
+    public function buildLeaveCommand(string $streamType = 'all'): array
+    {
+        $type = strtolower(trim($streamType));
+
+        if ($type === 'all') {
+            return [
+                'leave video',
+                'leave audio',
+            ];
+        }
+
+        return ["leave {$type}"];
     }
 }
