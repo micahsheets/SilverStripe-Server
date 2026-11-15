@@ -1,0 +1,12 @@
+---
+Name: module-projector
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/projector//$Action/$ID': 'App\Controller\ProjectorController'
+    'api/projector//$Action/$ID': 'App\Controller\ProjectorController'
+
+App\Admin\AVSettingsAdmin:
+  extensions:
+    - App\Extension\ProjectorAdminExtension

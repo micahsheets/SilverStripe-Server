@@ -274,4 +274,29 @@ class VPXSecurityGuard
         $mask = -1 << (32 - (int) $bits);
         return ($ipLong & $mask) === ($subnetLong & $mask);
     }
+
+    public static function getFirstPermittedUrl(HTTPRequest $request): ?string
+    {
+        $settings = PanelSettings::current();
+        $candidates = $settings->ActiveModules()->sort('SortOrder');
+        if ($candidates->count() === 0) {
+            $candidates = \App\Model\SystemModule::get()->sort('SortOrder');
+        }
+
+        foreach ($candidates as $mod) {
+            $cleanRoute = '/' . ltrim((string) $mod->Route, '/');
+            if ($cleanRoute === '/panel' || $cleanRoute === '/panel/splash') {
+                continue;
+            }
+            if (self::canAccess($request, (string) $mod->PermissionCode)) {
+                return $cleanRoute;
+            }
+        }
+
+        if (self::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+            return '/panel/discover';
+        }
+
+        return null;
+    }
 }

@@ -2,9 +2,11 @@
 
 namespace App\Model;
 
+use App\Contract\TouchPanelModuleInterface;
+use App\Security\VPXPermissionProvider;
+use SilverStripe\Core\ClassInfo;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DB;
-use App\Security\VPXPermissionProvider;
 
 class SystemModule extends DataObject
 {
@@ -33,24 +35,34 @@ class SystemModule extends DataObject
     {
         parent::requireDefaultRecords();
 
-        $defaultModules = array(
-            array('Video Matrix', '/panel/video', VPXPermissionProvider::PERM_ACCESS_MATRIX, 10),
-            array('Audio DSP', '/panel/audio', VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX, 20),
-            array('Lighting', '/panel/lighting', VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC, 30),
-            array('Cameras', '/panel/camera', VPXPermissionProvider::PERM_ACCESS_CAMERA, 40),
-            array('RØDECaster', '/panel/rodecaster', VPXPermissionProvider::PERM_ACCESS_RODECASTER, 50),
-        );
+        $modules = [
+            ['Video Matrix', '/panel/video', VPXPermissionProvider::PERM_ACCESS_MATRIX, 10],
+            ['Audio DSP', '/panel/audio', VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX, 20],
+            ['Lighting', '/panel/lighting', VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC, 30],
+            ['Cameras', '/panel/camera', VPXPermissionProvider::PERM_ACCESS_CAMERA, 40],
+            ['RØDECaster', '/panel/rodecaster', VPXPermissionProvider::PERM_ACCESS_RODECASTER, 50],
+        ];
 
-        foreach ($defaultModules as $mod) {
-            $existing = self::get()->filter('Route', $mod[1])->first()
+        foreach (ClassInfo::implementorsOf(TouchPanelModuleInterface::class) as $class) {
+            $modules[] = [
+                $class::getModuleTitle(),
+                $class::getModuleRoute(),
+                $class::getModulePermission(),
+                $class::getModuleSortOrder(),
+            ];
+        }
+
+        foreach ($modules as $mod) {
+            $cleanRoute = '/' . ltrim((string) $mod[1], '/');
+            $existing = self::get()->filter('Route', $cleanRoute)->first()
                 ?: self::get()->filter('Title', $mod[0])->first();
             if (!$existing) {
-                $record = self::create(array(
+                $record = self::create([
                     'Title' => $mod[0],
-                    'Route' => $mod[1],
+                    'Route' => $cleanRoute,
                     'PermissionCode' => $mod[2],
                     'SortOrder' => $mod[3]
-                ));
+                ]);
                 $record->write();
                 DB::alteration_message("Added System Module: {$mod[0]}", 'created');
             }

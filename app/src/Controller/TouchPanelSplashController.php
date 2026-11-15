@@ -53,32 +53,6 @@ class TouchPanelSplashController extends Controller
 
     protected function getFirstPermittedUrl(HTTPRequest $request): ?string
     {
-        $settings = PanelSettings::current();
-        foreach ($settings->ActiveModules()->sort('SortOrder') as $mod) {
-            if (VPXSecurityGuard::canAccess($request, $mod->PermissionCode)) {
-                return $mod->Route;
-            }
-        }
-
-        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_MATRIX)) {
-            return '/panel/video';
-        }
-        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX)) {
-            return '/panel/audio';
-        }
-        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC)) {
-            return '/panel/lighting';
-        }
-        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_CAMERA)) {
-            return '/panel/camera';
-        }
-        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_RODECASTER)) {
-            return '/panel/rodecaster';
-        }
-        if (VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_DISCOVERY)) {
-            return '/panel/discover';
-        }
-
-        return null;
+        return VPXSecurityGuard::getFirstPermittedUrl($request);
     }
 }
