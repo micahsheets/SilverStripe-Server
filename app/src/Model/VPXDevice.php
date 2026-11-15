@@ -197,8 +197,16 @@ class VPXDevice extends DataObject
 
         if ($type === 'all') {
             return [
+                'switch video stream',
                 "join video {$host}",
                 "join audio {$host}",
+            ];
+        }
+
+        if ($type === 'video') {
+            return [
+                'switch video stream',
+                "join video {$host}",
             ];
         }
 
