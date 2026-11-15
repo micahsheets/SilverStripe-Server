@@ -161,16 +161,13 @@ class VPXDevice extends DataObject
     {
         $result = parent::validate();
 
-        if (empty(trim((string) $this->Title))) {
-            $result->addFieldError('Title', 'Device Name is required.');
+        if (empty(trim((string) $this->Title))) {$result->addFieldError('Title', 'Device Name is required.');
         }
 
-        if (!filter_var($this->IPAddress, FILTER_VALIDATE_IP)) {
-            $result->addFieldError('IPAddress', 'Please enter a valid IPv4 or IPv6 address.');
+        if (!filter_var($this->IPAddress, FILTER_VALIDATE_IP)) {$result->addFieldError('IPAddress', 'Please enter a valid IPv4 or IPv6 address.');
         }
 
-        if (empty(trim((string) $this->Hostname))) {
-            $result->addFieldError('Hostname', 'VPX Hostname is required for UDP join commands.');
+        if (empty(trim((string) $this->Hostname))) {$result->addFieldError('Hostname', 'VPX Hostname is required for UDP join commands.');
         }
 
         $duplicateIP = self::get()
@@ -178,8 +175,7 @@ class VPXDevice extends DataObject
             ->exclude('ID', (int) $this->ID)
             ->first();
 
-        if ($duplicateIP) {
-            $result->addFieldError('IPAddress', "IP Address {$this->IPAddress} is already assigned to {$duplicateIP->Title}.");
+        if ($duplicateIP) {$result->addFieldError('IPAddress', "IP Address {$this->IPAddress} is already assigned to {$duplicateIP->Title}.");
         }
 
         return $result;
@@ -190,14 +186,14 @@ class VPXDevice extends DataObject
      *
      * @return string[]
      */
-    public function buildJoinCommand(VPXDevice $encoder, string $streamType = 'all'): array
+    public function buildJoinCommand(VPXDevice $encoder, string$streamType = 'all'): array
     {
         $host = trim((string) ($encoder->Hostname ?: $encoder->IPAddress));
         $type = strtolower(trim($streamType));
 
         if ($type === 'all') {
             return [
-                'switch video stream',
+                'set local_display_source STREAM',
                 "join video {$host}",
                 "join audio {$host}",
             ];
@@ -205,7 +201,7 @@ class VPXDevice extends DataObject
 
         if ($type === 'video') {
             return [
-                'switch video stream',
+                'set local_display_source STREAM',
                 "join video {$host}",
             ];
         }

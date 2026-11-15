@@ -14,68 +14,19 @@ class VPXUDPService
 
     public function sendCommand(VPXDevice $device, string $command, bool $logAsRawCommand = true): bool
     {
-        $ip = trim((string) $device->IPAddress);
-        $port = (int) ($device->UDPPort ?: 6970);
         $cleanCmd = rtrim($command, "\r\n");
 
-        $binaryCmd = preg_replace_callback(
-            '/\\\\x([0-9A-Fa-f]{2})/',
-            fn(array $m) => chr((int) hexdec($m[1])),
-            $cleanCmd
-        );
+        // Automatically switch decoder off Local HDMI before any raw/composer video join command
+        if (
+            $device->Mode === VPXDevice::MODE_DECODER
+            && preg_match('/^join\s+(video|all)\b/i', ltrim($cleanCmd))
+        ) {
+            $this->transmitRaw($device, 'set local_display_source STREAM');
+            usleep(250_000);
+        }
 
         try {
-            if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-                throw new RuntimeException("Invalid IP address configured for '{$device->Title}'.");
-            }
-
-            $payload = $binaryCmd . "\r";
-
-            $fp = @fsockopen($ip, $port, $errno, $errstr, 0.5);
-            if (is_resource($fp)) {
-                stream_set_timeout($fp, 0, 500_000);
-                if (@fwrite($fp, $payload) === false) {
-                    fclose($fp);
-                    throw new RuntimeException("Failed writing command to {$ip}:{$port}.");
-                }
-
-                $raw = '';
-                $deadline = microtime(true) + 0.5;
-                while (!feof($fp) && microtime(true) < $deadline) {
-                    $chunk = @fread($fp, 1024);
-                    if ($chunk !== false && $chunk !== '') {
-                        $raw .= $chunk;
-                        if (str_contains($raw, '}')) {
-                            break;
-                        }
-                    } else {
-                        usleep(10_000);
-                    }
-                }
-                fclose($fp);
-
-                $json = json_decode(trim($raw), true);
-                if (is_array($json) && ($json['status'] ?? '') === 'ERROR') {
-                    throw new RuntimeException(
-                        sprintf('VPX rejected "%s": %s', $cleanCmd, (string) ($json['error'] ?? 'UNKNOWN_ERROR'))
-                    );
-                }
-            } else {
-                $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-                if ($socket === false) {
-                    throw new RuntimeException('Unable to create UDP socket: ' . socket_strerror(socket_last_error()));
-                }
-                try {
-                    socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 1, 'usec' => 0]);
-                    if (@socket_sendto($socket, $payload, strlen($payload), 0, $ip, $port) === false) {
-                        throw new RuntimeException(
-                            sprintf('Failed sending UDP to %s:%d - %s', $ip, $port, socket_strerror(socket_last_error($socket)))
-                        );
-                    }
-                } finally {
-                    socket_close($socket);
-                }
-            }
+            $this->transmitRaw($device, $cleanCmd);
 
             if ($logAsRawCommand) {
                 RouteAuditLog::record('Command', "{$device->Title}: {$cleanCmd}", $cleanCmd, true, null, $device);
@@ -87,6 +38,70 @@ class VPXUDPService
                 RouteAuditLog::record('Command', "{$device->Title}: {$cleanCmd}", $cleanCmd, false, $e->getMessage(), $device);
             }
             throw $e;
+        }
+    }
+
+    private function transmitRaw(VPXDevice $device, string $cleanCmd): void
+    {
+        $ip = trim((string) $device->IPAddress);
+        $port = (int) ($device->UDPPort ?: 6970);
+
+        $binaryCmd = preg_replace_callback(
+            '/\\\\x([0-9A-Fa-f]{2})/',
+            fn(array $m) => chr((int) hexdec($m[1])),
+            $cleanCmd
+        );
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            throw new RuntimeException("Invalid IP address configured for '{$device->Title}'.");
+        }
+
+        $payload = $binaryCmd . "\r";
+
+        $fp = @fsockopen($ip, $port, $errno, $errstr, 0.5);
+        if (is_resource($fp)) {
+            stream_set_timeout($fp, 0, 500_000);
+            if (@fwrite($fp, $payload) === false) {
+                fclose($fp);
+                throw new RuntimeException("Failed writing command to {$ip}:{$port}.");
+            }
+
+            $raw = '';
+            $deadline = microtime(true) + 0.5;
+            while (!feof($fp) && microtime(true) < $deadline) {
+                $chunk = @fread($fp, 1024);
+                if ($chunk !== false && $chunk !== '') {
+                    $raw .= $chunk;
+                    if (str_contains($raw, '}')) {
+                        break;
+                    }
+                } else {
+                    usleep(10_000);
+                }
+            }
+            fclose($fp);
+
+            $json = json_decode(trim($raw), true);
+            if (is_array($json) && ($json['status'] ?? '') === 'ERROR') {
+                throw new RuntimeException(
+                    sprintf('VPX rejected "%s": %s', $cleanCmd, (string) ($json['error'] ?? 'UNKNOWN_ERROR'))
+                );
+            }
+        } else {
+            $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+            if ($socket === false) {
+                throw new RuntimeException('Unable to create UDP socket: ' . socket_strerror(socket_last_error()));
+            }
+            try {
+                socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => 1, 'usec' => 0]);
+                if (@socket_sendto($socket, $payload, strlen($payload), 0, $ip, $port) === false) {
+                    throw new RuntimeException(
+                        sprintf('Failed sending UDP to %s:%d - %s', $ip, $port, socket_strerror(socket_last_error($socket)))
+                    );
+                }
+            } finally {
+                socket_close($socket);
+            }
         }
     }
 
