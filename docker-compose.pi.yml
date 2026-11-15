@@ -2,11 +2,12 @@ services:
   web:
     build: .
     network_mode: host
+    ports: !reset []
     restart: unless-stopped
     environment:
       SS_ENVIRONMENT_TYPE: live
       SS_DATABASE_SERVER: 127.0.0.1
-      SS_BASE_URL: http://localhost
+      SS_BASE_URL: http://av-panel.local
     depends_on:
       - database
 
