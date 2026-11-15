@@ -3,68 +3,53 @@
 namespace App\Model;
 
 use App\Contract\TouchPanelModuleInterface;
-use App\Security\VPXPermissionProvider;
 use SilverStripe\Core\ClassInfo;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DB;
 
 class SystemModule extends DataObject
 {
-    private static $table_name = 'SystemModule';
+    private static string $table_name = 'SystemModule';
 
-    private static $db = [
+    private static array $db = [
         'Title' => 'Varchar(50)',
         'Route' => 'Varchar(100)',
         'PermissionCode' => 'Varchar(100)',
-        'SortOrder' => 'Int'
+        'SortOrder' => 'Int',
     ];
 
-    private static $belongs_many_many = [
-        'PanelSettings' => PanelSettings::class
+    private static array $belongs_many_many = [
+        'PanelSettings' => PanelSettings::class,
     ];
 
-    private static $default_sort = 'SortOrder ASC';
+    private static string $default_sort = 'SortOrder ASC';
 
-    private static $summary_fields = [
+    private static array $summary_fields = [
         'Title' => 'Module Name',
         'Route' => 'URL Route',
-        'PermissionCode' => 'Permission'
+        'PermissionCode' => 'Permission',
     ];
 
-    public function requireDefaultRecords()
+    public function requireDefaultRecords(): void
     {
         parent::requireDefaultRecords();
 
-        $modules = [
-            ['Video Matrix', '/panel/video', VPXPermissionProvider::PERM_ACCESS_MATRIX, 10],
-            ['Audio DSP', '/panel/audio', VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX, 20],
-            ['Lighting', '/panel/lighting', VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC, 30],
-            ['Cameras', '/panel/camera', VPXPermissionProvider::PERM_ACCESS_CAMERA, 40],
-            ['RØDECaster', '/panel/rodecaster', VPXPermissionProvider::PERM_ACCESS_RODECASTER, 50],
-        ];
-
         foreach (ClassInfo::implementorsOf(TouchPanelModuleInterface::class) as $class) {
-            $modules[] = [
-                $class::getModuleTitle(),
-                $class::getModuleRoute(),
-                $class::getModulePermission(),
-                $class::getModuleSortOrder(),
-            ];
-        }
+            $title = $class::getModuleTitle();
+            $cleanRoute = '/' . ltrim((string) $class::getModuleRoute(), '/');
 
-        foreach ($modules as $mod) {
-            $cleanRoute = '/' . ltrim((string) $mod[1], '/');
             $existing = self::get()->filter('Route', $cleanRoute)->first()
-                ?: self::get()->filter('Title', $mod[0])->first();
+                ?: self::get()->filter('Title', $title)->first();
+
             if (!$existing) {
                 $record = self::create([
-                    'Title' => $mod[0],
+                    'Title' => $title,
                     'Route' => $cleanRoute,
-                    'PermissionCode' => $mod[2],
-                    'SortOrder' => $mod[3]
+                    'PermissionCode' => $class::getModulePermission(),
+                    'SortOrder' => $class::getModuleSortOrder(),
                 ]);
                 $record->write();
-                DB::alteration_message("Added System Module: {$mod[0]}", 'created');
+                DB::alteration_message("Added System Module: {$title}", 'created');
             }
         }
 

@@ -2,20 +2,27 @@
 
 namespace App\Controller;
 
+use App\Contract\TouchPanelModuleInterface;
 use App\Model\DTXDevice;
 use App\Model\RouteAuditLog;
 use App\Security\VPXPermissionProvider;
 use App\Security\VPXSecurityGuard;
 use App\Service\DTXAudioService;
 use App\Service\DTXDiscoveryService;
+use App\Traits\TouchPanelControllerTrait;
 use Exception;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
+use SilverStripe\Security\PermissionProvider;
 use Throwable;
 
-class DTXController extends Controller
+class DTXController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
+    use TouchPanelControllerTrait;
+
+    public const PERM_ACCESS = 'VPX_ACCESS_AUDIO_DTX';
+
     private static string $url_segment = 'panel/audio';
 
     private static array $url_handlers = [
@@ -32,6 +39,37 @@ class DTXController extends Controller
         'import',
     ];
 
+    public static function getModuleTitle(): string
+    {
+        return 'Audio DSP';
+    }
+
+    public static function getModuleRoute(): string
+    {
+        return '/panel/audio';
+    }
+
+    public static function getModulePermission(): string
+    {
+        return self::PERM_ACCESS;
+    }
+
+    public static function getModuleSortOrder(): int
+    {
+        return 20;
+    }
+
+    public function providePermissions(): array
+    {
+        return [
+            self::PERM_ACCESS => [
+                'name' => 'Access Aurora DTX Audio Control',
+                'category' => 'AV & Control System',
+                'help' => 'Allows viewing and adjusting Aurora DTX DSP audio levels, mutes, and zones.',
+            ],
+        ];
+    }
+
     protected function init(): void
     {
         parent::init();
@@ -47,10 +85,10 @@ class DTXController extends Controller
     {
         $session = $request->getSession();
 
-if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX)) {
-    $session->save($request);
-    return $this->redirect('/panel/splash');
-}
+        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+            $session->save($request);
+            return $this->redirect('/panel/splash');
+        }
 
         $session->save($request);
 
@@ -63,7 +101,69 @@ if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_AU
         ]);
     }
 
-    // ... keep your existing api(HTTPRequest $request) method here ...
+    public function api(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Method Not Allowed'], 405);
+        }
+
+        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Permission denied'], 403);
+        }
+
+        $data = $this->parseRequestData($request);
+        $deviceId = (int) ($data['device_id'] ?? 0);
+        $action = trim((string) ($data['action'] ?? ''));
+        $channel = trim((string) ($data['channel'] ?? ''));
+        $value = $data['value'] ?? null;
+
+        $device = DTXDevice::get()->byID($deviceId);
+        if (!$device) {
+            return $this->jsonResponse(['success' => false, 'error' => 'DTX device not found'], 404);
+        }
+
+        try {
+            $service = new DTXAudioService($device->IPAddress, (int) ($device->ControlPort ?: 5000));
+
+            switch ($action) {
+                case 'volume':
+                case 'gain':
+                    $service->setChannelVolume($channel, (float) $value);
+                    break;
+                case 'mute':
+                    $service->setChannelMute($channel, filter_var($value, FILTER_VALIDATE_BOOLEAN));
+                    break;
+                case 'preset':
+                    $service->recallPreset((int) $value);
+                    break;
+                default:
+                    throw new Exception("Unsupported DTX action: {$action}");
+            }
+
+            RouteAuditLog::record(
+                'Audio_Control',
+                "DTX {$action} on {$device->Title}",
+                "Channel: {$channel}, Value: {$value}",
+                true,
+                ''
+            );
+
+            return $this->jsonResponse(['success' => true]);
+        } catch (Throwable $e) {
+            RouteAuditLog::record(
+                'Audio_Control',
+                "DTX {$action} failed on {$device->Title}",
+                "Channel: {$channel}, Value: {$value}",
+                false,
+                $e->getMessage()
+            );
+
+            return $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
     public function discover(HTTPRequest $request): HTTPResponse
     {
@@ -130,24 +230,5 @@ if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_AU
                 'error' => $e->getMessage(),
             ], 500);
         }
-    }
-
-    private function parseRequestData(HTTPRequest $request): array
-    {
-        $body = $request->getBody();
-        if ($body !== '' && str_contains((string) $request->getHeader('Content-Type'), 'application/json')) {
-            $decoded = json_decode($body, true);
-            if (is_array($decoded)) {
-                return $decoded;
-            }
-        }
-        return $request->postVars();
-    }
-
-    private function jsonResponse(array $payload, int $statusCode = 200): HTTPResponse
-    {
-        return HTTPResponse::create(json_encode($payload, JSON_PRETTY_PRINT))
-            ->setStatusCode($statusCode)
-            ->addHeader('Content-Type', 'application/json');
     }
 }

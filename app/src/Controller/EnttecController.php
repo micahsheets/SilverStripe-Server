@@ -2,22 +2,28 @@
 
 namespace App\Controller;
 
+use App\Contract\TouchPanelModuleInterface;
 use App\Model\EnttecDevice;
 use App\Model\Location;
 use App\Model\PanelSettings;
 use App\Security\VPXPermissionProvider;
 use App\Security\VPXSecurityGuard;
 use App\Service\EnttecSPlayService;
+use App\Traits\TouchPanelControllerTrait;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
-use SilverStripe\Control\HTTPResponse_Exception;
 use SilverStripe\ORM\FieldType\DBHTMLText;
+use SilverStripe\Security\PermissionProvider;
 use SilverStripe\Security\SecurityToken;
 use Throwable;
 
-class EnttecController extends Controller
+class EnttecController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
+    use TouchPanelControllerTrait;
+
+    public const PERM_ACCESS = 'VPX_ACCESS_LIGHTING_ENTTEC';
+
     private static string $url_segment = 'panel/lighting';
 
     private static array $allowed_actions = [
@@ -40,36 +46,43 @@ class EnttecController extends Controller
         $this->splayService = EnttecSPlayService::singleton();
     }
 
+    public static function getModuleTitle(): string
+    {
+        return 'Lighting';
+    }
+
+    public static function getModuleRoute(): string
+    {
+        return '/panel/lighting';
+    }
+
+    public static function getModulePermission(): string
+    {
+        return self::PERM_ACCESS;
+    }
+
+    public static function getModuleSortOrder(): int
+    {
+        return 30;
+    }
+
+    public function providePermissions(): array
+    {
+        return [
+            self::PERM_ACCESS => [
+                'name' => 'Access Enttec Lighting Control',
+                'category' => 'AV & Control System',
+                'help' => 'Allows triggering Enttec DMX scenes and adjusting lighting zones.',
+            ],
+        ];
+    }
+
     protected function init(): void
     {
         parent::init();
         $request = $this->getRequest();
         $isApi = str_starts_with(trim($request->getURL(), '/'), 'api/enttec');
-
-        if (!VPXSecurityGuard::isIPAllowed($request)) {
-            if ($isApi) {
-                throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'IP not allowed.'], 403));
-            }
-            $this->httpError(403, 'Access denied from this network.');
-        }
-
-        if (!VPXSecurityGuard::isAuthenticated($request)) {
-            if ($isApi) {
-                throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Auth required.'], 401));
-            }
-            throw new HTTPResponse_Exception($this->redirect('/panel/splash'));
-        }
-
-        if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC)) {
-            if ($isApi) {
-                throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Lighting permission required.'], 403));
-            }
-            throw new HTTPResponse_Exception($this->redirect('/panel/pin?err=denied'));
-        }
-
-        if ($isApi && $request->isPOST() && !VPXSecurityGuard::isValidCSRF($request)) {
-            throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403));
-        }
+        $this->enforcePanelGuard($request, self::PERM_ACCESS, $isApi);
     }
 
     public function index(HTTPRequest $request): DBHTMLText
@@ -265,19 +278,9 @@ class EnttecController extends Controller
         }
     }
 
-    public function CanAccessMatrix(): bool
-    {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_MATRIX);
-    }
-
-    public function CanAccessAudio(): bool
-    {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_AUDIO_DTX);
-    }
-
     public function CanAccessLighting(): bool
     {
-        return VPXSecurityGuard::canAccess($this->getRequest(), VPXPermissionProvider::PERM_ACCESS_LIGHTING_ENTTEC);
+        return VPXSecurityGuard::canAccess($this->getRequest(), self::PERM_ACCESS);
     }
 
     public function CanAccessDiscovery(): bool
@@ -297,24 +300,5 @@ class EnttecController extends Controller
             throw new \RuntimeException('No Enttec S-Play controller configured in AV System admin.');
         }
         return $device;
-    }
-
-    private function parseRequestData(HTTPRequest $request): array
-    {
-        $body = $request->getBody();
-        if ($body !== '' && str_contains((string) $request->getHeader('Content-Type'), 'application/json')) {
-            $decoded = json_decode($body, true);
-            if (is_array($decoded)) {
-                return $decoded;
-            }
-        }
-        return $request->postVars();
-    }
-
-    private function jsonResponse(array $payload, int $statusCode = 200): HTTPResponse
-    {
-        return HTTPResponse::create(json_encode($payload, JSON_PRETTY_PRINT))
-            ->setStatusCode($statusCode)
-            ->addHeader('Content-Type', 'application/json');
     }
 }

@@ -2,16 +2,19 @@
 
 namespace App\Controller;
 
+use App\Contract\TouchPanelModuleInterface;
 use App\Model\PanelSettings;
-use App\Security\VPXPermissionProvider;
 use App\Security\VPXSecurityGuard;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\ORM\FieldType\DBHTMLText;
+use SilverStripe\Security\PermissionProvider;
 
-class VPXController extends Controller
+class VPXController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
+    public const PERM_ACCESS = 'VPX_ACCESS_MATRIX';
+
     private static string $url_segment = 'panel/video';
 
     private static array $url_handlers = [
@@ -21,6 +24,37 @@ class VPXController extends Controller
     private static array $allowed_actions = [
         'index',
     ];
+
+    public static function getModuleTitle(): string
+    {
+        return 'Video Matrix';
+    }
+
+    public static function getModuleRoute(): string
+    {
+        return '/panel/video';
+    }
+
+    public static function getModulePermission(): string
+    {
+        return self::PERM_ACCESS;
+    }
+
+    public static function getModuleSortOrder(): int
+    {
+        return 10;
+    }
+
+    public function providePermissions(): array
+    {
+        return [
+            self::PERM_ACCESS => [
+                'name' => 'Access Video Matrix Control Panel',
+                'category' => 'AV & Control System',
+                'help' => 'Allows routing encoders/decoders, triggering presets, and controlling display power.',
+            ],
+        ];
+    }
 
     protected function init(): void
     {
@@ -39,7 +73,7 @@ class VPXController extends Controller
     {
         $session = $request->getSession();
 
-        if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_MATRIX)) {
+        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             $session->save($request);
             return $this->redirect('/panel/splash');
         }

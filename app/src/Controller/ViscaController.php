@@ -2,27 +2,63 @@
 
 namespace App\Controller;
 
-use SilverStripe\Control\Controller;
-use SilverStripe\Control\HTTPRequest;
-use App\Security\VPXSecurityGuard;
+use App\Contract\TouchPanelModuleInterface;
+use App\Model\PanelSettings;
 use App\Model\RouteAuditLog;
 use App\Model\ViscaCamera;
+use App\Security\VPXSecurityGuard;
 use App\Service\ViscaService;
 use Exception;
+use SilverStripe\Control\Controller;
+use SilverStripe\Control\HTTPRequest;
+use SilverStripe\Security\PermissionProvider;
 
-class ViscaController extends Controller
+class ViscaController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
-    private static $url_segment = 'panel/camera';
+    public const PERM_ACCESS = 'VPX_ACCESS_CAMERA';
 
-    private static $url_handlers = array(
+    private static string $url_segment = 'panel/camera';
+
+    private static array $url_handlers = [
         '' => 'index',
-        'api' => 'api'
-    );
+        'api' => 'api',
+    ];
 
-    private static $allowed_actions = array(
+    private static array $allowed_actions = [
         'index',
-        'api'
-    );
+        'api',
+    ];
+
+    public static function getModuleTitle(): string
+    {
+        return 'Cameras';
+    }
+
+    public static function getModuleRoute(): string
+    {
+        return '/panel/camera';
+    }
+
+    public static function getModulePermission(): string
+    {
+        return self::PERM_ACCESS;
+    }
+
+    public static function getModuleSortOrder(): int
+    {
+        return 40;
+    }
+
+    public function providePermissions(): array
+    {
+        return [
+            self::PERM_ACCESS => [
+                'name' => 'Access VISCA Camera Control',
+                'category' => 'AV & Control System',
+                'help' => 'Allows controlling PTZ cameras and recalling/saving presets.',
+            ],
+        ];
+    }
 
     public function init()
     {
@@ -39,21 +75,20 @@ class ViscaController extends Controller
     {
         $session = $request->getSession();
 
-        // Check both Member permissions and Basic PIN permissions
-        if (!VPXSecurityGuard::canAccess($request, 'VPX_ACCESS_CAMERA')) {
+        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             $session->save($request);
             return $this->redirect('/panel/splash');
         }
 
         $session->save($request);
 
-        return $this->customise(array(
-            'PanelSettings' => \App\Model\PanelSettings::current(),
-            'Cameras' => ViscaCamera::get()->filter('Active', 1)
-        ))->renderWith(array(
+        return $this->customise([
+            'PanelSettings' => PanelSettings::current(),
+            'Cameras' => ViscaCamera::get()->filter('Active', 1),
+        ])->renderWith([
             'App\\Controller\\TouchPanelCamera',
-            'Page'
-        ));
+            'Page',
+        ]);
     }
 
     public function api(HTTPRequest $request)
@@ -62,7 +97,7 @@ class ViscaController extends Controller
             return $this->httpError(405, 'Method Not Allowed');
         }
 
-        if (!VPXSecurityGuard::canAccess($request, 'VPX_ACCESS_CAMERA')) {
+        if (!VPXSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
             return $this->httpError(403, 'Forbidden');
         }
 
@@ -88,10 +123,10 @@ class ViscaController extends Controller
                     $success = $service->ptzZoom($param);
                     break;
                 case 'recall':
-                    $success = $service->recallPreset((int)$param);
+                    $success = $service->recallPreset((int) $param);
                     break;
                 case 'save':
-                    $success = $service->savePreset((int)$param);
+                    $success = $service->savePreset((int) $param);
                     break;
                 default:
                     throw new Exception("Invalid camera command: {$command}");
@@ -101,7 +136,7 @@ class ViscaController extends Controller
             $errorDetail = $e->getMessage();
         }
 
-        if (in_array($command, array('save', 'recall'))) {
+        if (in_array($command, ['save', 'recall'], true)) {
             RouteAuditLog::record(
                 'Camera_Control',
                 "Camera Preset {$command} on {$camera->Title}",
@@ -112,14 +147,14 @@ class ViscaController extends Controller
         }
 
         if (!$success) {
-            return json_encode(array(
+            return json_encode([
                 'status' => 'error',
-                'message' => $errorDetail
-            ));
+                'message' => $errorDetail,
+            ]);
         }
 
-        return json_encode(array(
-            'status' => 'success'
-        ));
+        return json_encode([
+            'status' => 'success',
+        ]);
     }
 }

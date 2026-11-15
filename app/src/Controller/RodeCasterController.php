@@ -2,21 +2,25 @@
 
 namespace App\Controller;
 
+use App\Contract\TouchPanelModuleInterface;
 use App\Model\PanelSettings;
 use App\Model\RodeCasterDevice;
-use App\Security\VPXPermissionProvider;
-use App\Security\VPXSecurityGuard;
 use App\Service\RodeCasterOSCService;
+use App\Traits\TouchPanelControllerTrait;
 use RuntimeException;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
-use SilverStripe\Control\HTTPResponse_Exception;
 use SilverStripe\ORM\FieldType\DBHTMLText;
+use SilverStripe\Security\PermissionProvider;
 use SilverStripe\Security\SecurityToken;
 
-class RodeCasterController extends Controller
+class RodeCasterController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
+    use TouchPanelControllerTrait;
+
+    public const PERM_ACCESS = 'VPX_ACCESS_RODECASTER';
+
     private static string $url_segment = 'panel/rodecaster';
 
     private static array $allowed_actions = [
@@ -33,36 +37,43 @@ class RodeCasterController extends Controller
         ''        => 'index',
     ];
 
+    public static function getModuleTitle(): string
+    {
+        return 'RØDECaster';
+    }
+
+    public static function getModuleRoute(): string
+    {
+        return '/panel/rodecaster';
+    }
+
+    public static function getModulePermission(): string
+    {
+        return self::PERM_ACCESS;
+    }
+
+    public static function getModuleSortOrder(): int
+    {
+        return 50;
+    }
+
+    public function providePermissions(): array
+    {
+        return [
+            self::PERM_ACCESS => [
+                'name' => 'Access RØDECaster Video Control',
+                'category' => 'AV & Control System',
+                'help' => 'Allows switching scenes, inputs, overlays, and media on RØDECaster Video units.',
+            ],
+        ];
+    }
+
     protected function init(): void
     {
         parent::init();
         $request = $this->getRequest();
         $isApi = str_starts_with(trim($request->getURL(), '/'), 'api/rodecaster');
-
-        if (!VPXSecurityGuard::isIPAllowed($request)) {
-            if ($isApi) {
-                throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'IP not allowed.'], 403));
-            }
-            $this->httpError(403, 'Access denied from this network.');
-        }
-
-        if (!VPXSecurityGuard::isAuthenticated($request)) {
-            if ($isApi) {
-                throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Auth required.'], 401));
-            }
-            throw new HTTPResponse_Exception($this->redirect('/panel/splash'));
-        }
-
-        if (!VPXSecurityGuard::canAccess($request, VPXPermissionProvider::PERM_ACCESS_RODECASTER)) {
-            if ($isApi) {
-                throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Permission denied.'], 403));
-            }
-            throw new HTTPResponse_Exception($this->redirect('/panel/pin?err=denied'));
-        }
-
-        if ($isApi && $request->isPOST() && !VPXSecurityGuard::isValidCSRF($request)) {
-            throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403));
-        }
+        $this->enforcePanelGuard($request, self::PERM_ACCESS, $isApi);
     }
 
     public function index(HTTPRequest $request): DBHTMLText
@@ -143,11 +154,5 @@ class RodeCasterController extends Controller
         } catch (RuntimeException $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
         }
-    }
-
-    private function jsonResponse(array $data, int $status = 200): HTTPResponse
-    {
-        return HTTPResponse::create(json_encode($data), $status)
-            ->addHeader('Content-Type', 'application/json');
     }
 }
