@@ -34,13 +34,8 @@ class Location extends DataObject
         'SortOrder' => 'Int',
     ];
 
-    private static array $has_many = [
-        'Devices' => VPXDevice::class . '.Location',
-    ];
-
     private static array $summary_fields = [
         'Title' => 'Location / Room Name',
-        'Devices.Count' => 'Assigned VPX Units',
         'Description' => 'Notes',
     ];
 
@@ -51,17 +46,6 @@ class Location extends DataObject
                 ->setDescription('e.g., "Front Room", "Back Wall", or "Main Stage"'),
             TextareaField::create('Description', 'Description / Notes')
         );
-
-        if ($this->isInDB()) {
-            $fields->push(
-                GridField::create(
-                    'Devices',
-                    'VPX Devices in this Location',
-                    $this->Devices(),
-                    GridFieldConfig_RecordEditor::create()
-                )
-            );
-        }
 
         return $fields;
     }
