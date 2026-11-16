@@ -3,7 +3,6 @@
 namespace App\Security;
 
 use App\Model\PanelSettings;
-use App\Model\RouteAuditLog;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Core\Environment;
 use SilverStripe\Security\Member;
@@ -174,17 +173,7 @@ class PanelSecurityGuard
             $session->set(self::SESSION_KEY, hash('sha256', 'master:' . $masterPin));
 
             // Record an audit entry whenever the emergency master .env PIN is used
-            if (class_exists(RouteAuditLog::class)) {
-                $log = RouteAuditLog::create([
-                    'ActionType' => 'Command',
-                    'Summary' => 'Touch panel unlocked using emergency .env Master PIN',
-                    'CommandSent' => 'AUTH_MASTER_PIN',
-                    'Actor' => 'Master .env PIN',
-                    'ClientIP' => (string) $request->getIP(),
-                    'Success' => true,
-                ]);
-                $log->write();
-            }
+            static::singleton()->extend('onPanelSecurityAudit', $ip, $reason);
 
             return true;
         }

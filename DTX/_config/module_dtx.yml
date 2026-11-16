@@ -1,0 +1,24 @@
+---
+Name: module-dtx
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/audio//$Action/$ID': 'App\DTX\Controller\DTXController'
+    'api/dtx//$Action/$ID': 'App\DTX\Controller\DTXController'
+
+SilverStripe\ORM\DatabaseAdmin:
+  classname_value_remapping:
+    App\Model\DTXDevice: App\DTX\Model\DTXDevice
+
+App\DTX\Controller\DTXController:
+  extensions:
+    - App\DTX\Extensions\DTXAuditExtension
+
+App\DTX\Service\DTXAudioService:
+  extensions:
+    - App\DTX\Extensions\DTXAuditExtension
+
+App\DTX\Admin\DTXAdmin:
+  managed_models:
+    - App\DTX\Model\DTXAuditLog

@@ -1,6 +1,9 @@
 <?php
 
 namespace App\Projector\Model;
+use SilverStripe\Forms\DropdownField;
+
+use App\Model\Location;
 
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\NumericField;
@@ -17,12 +20,17 @@ class ProjectorDevice extends DataObject
         'Active' => 'Boolean',
     ];
 
+    private static array $has_one = [
+        'Location' => Location::class,
+    ];
+
     private static array $defaults = [
         'Port' => 4352, // PJLink default TCP port
         'Active' => 1,
     ];
 
     private static array $summary_fields = [
+        'Location.Title' => 'Room / Location',
         'Title' => 'Projector Name',
         'IPAddress' => 'IP Address',
         'RawPort' => 'Port',

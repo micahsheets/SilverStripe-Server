@@ -2,6 +2,8 @@
 
 namespace App\Extension;
 
+use App\Model\Location;
+
 use App\Model\PanelSettings;
 use App\Security\PanelPermissionProvider;
 use App\Security\PanelSecurityGuard;
@@ -74,5 +76,10 @@ class PanelControllerExtension extends Extension
     public function getPanelSettings(): PanelSettings
     {
         return PanelSettings::current();
+    }
+
+    public function getLocations()
+    {
+        return Location::get();
     }
 }

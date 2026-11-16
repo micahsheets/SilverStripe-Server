@@ -54,6 +54,12 @@
     </header>
 
     <main class="panel-main">
+        <div class="room-tabs unified-room-tabs" style="margin-bottom:14px;">
+            <button type="button" class="room-tab active" data-location-id="0">All Rooms</button>
+            <% loop $Locations %>
+                <button type="button" class="room-tab" data-location-id="$ID">$Title</button>
+            <% end_loop %>
+        </div>
         <% if $Projectors %>
             <div class="device-grid" id="projectorsGrid">
                 <% loop $Projectors %>

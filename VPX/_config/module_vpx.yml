@@ -1,0 +1,22 @@
+---
+Name: module-vpx
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/video//$Action/$ID': 'App\VPX\Controller\VPXController'
+    'api/vpx//$Action/$ID': 'App\VPX\Controller\UDPController'
+
+SilverStripe\ORM\DatabaseAdmin:
+  classname_value_remapping:
+    App\Model\VPXDevice: App\VPX\Model\VPXDevice
+    App\Model\RoutePreset: App\VPX\Model\RoutePreset
+    App\Model\RoutePresetAction: App\VPX\Model\RoutePresetAction
+
+App\VPX\Service\VPXUDPService:
+  extensions:
+    - App\VPX\Extensions\VPXAuditExtension
+
+App\VPX\Admin\VPXMatrixAdmin:
+  managed_models:
+    - App\VPX\Model\VPXAuditLog

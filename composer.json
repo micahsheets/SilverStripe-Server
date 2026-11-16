@@ -43,5 +43,15 @@
         }
     },
     "prefer-stable": true,
-    "minimum-stability": "dev"
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "App\\VPX\\": "VPX/src/",
+            "App\\DTX\\": "DTX/src/",
+            "App\\Enttec\\": "Enttec/src/",
+            "App\\Visca\\": "Visca/src/",
+            "App\\RodeCaster\\": "RodeCaster/src/",
+            "App\\P300\\": "P300/src/"
+        }
+    }
 }
