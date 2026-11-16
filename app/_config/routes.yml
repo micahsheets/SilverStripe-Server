@@ -3,7 +3,6 @@ Name: approutes
 After:
   - '#rootroutes'
   - '#coreroutes'
-  - '#cmsroutes'
 ---
 SilverStripe\Control\Director:
   rules:
@@ -13,4 +12,5 @@ SilverStripe\Control\Director:
     'panel/unlock//$Action/$ID': 'App\Controller\PanelAuthController'
     'panel/lock//$Action/$ID': 'App\Controller\PanelAuthController'
     'panel/discover//$Action/$ID': 'App\Controller\PanelAuthController'
+    'panel-update//$Action': 'App\Controller\SystemUpdateController'
     'panel//$Action/$ID': 'App\Controller\TouchPanelSplashController'
