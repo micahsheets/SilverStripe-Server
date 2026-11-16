@@ -5,9 +5,9 @@ set -e
 zmodload zsh/zutil
 zparseopts -D -E v:=opt_version -version:=opt_version
 
-BASE_VERSION="${opt_version[2]:-$(date +%Y.%m.%d-%H%M)}"
-UNIX_SUFFIX=$(date +%s | tail -c 5)
-VERSION="${BASE_VERSION}-${UNIX_SUFFIX}"
+BASE_VERSION="${opt_version[2]:-1.0}"
+JULIAN_SUFFIX=$(date +%y%j-%H%M%S)
+VERSION="${BASE_VERSION}-${JULIAN_SUFFIX}"
 
 # Core folders always included in every patch
 CORE_DIRS=("app" "public")
