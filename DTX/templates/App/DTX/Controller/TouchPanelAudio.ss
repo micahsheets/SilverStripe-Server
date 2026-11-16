@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Audio DSP</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=28">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -28,7 +28,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=28">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
 </head>
 <body class="audio-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
 <div class="panel-backdrop">
@@ -54,38 +54,33 @@
     </header>
 
     <main class="panel-main">
-        <div class="room-tabs unified-room-tabs" style="margin-bottom:14px;">
+        <div class="room-tabs unified-room-tabs" style="margin-bottom:10px;">
             <button type="button" class="room-tab active" data-location-id="0">All Rooms</button>
             <% loop $Locations %>
                 <button type="button" class="room-tab" data-location-id="$ID">$Title</button>
             <% end_loop %>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px; flex:0 0 auto;">
             <div id="audio-device-tabs" class="device-tabs"></div>
-            <% if $CanAccessDiscovery %>
-                <button type="button" id="btn-discover-dtx" class="nav-pill">Scan Network for DTX</button>
-            <% end_if %>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button type="button" id="btn-refresh-dtx" class="nav-pill">Refresh Channels</button>
+                <% if $CanAccessDiscovery %>
+                    <button type="button" id="btn-discover-dtx" class="nav-pill">Scan Network for DTX</button>
+                <% end_if %>
+            </div>
         </div>
 
         <% if $Devices %>
             <div class="dsp-grid" id="dsp-container">
                 <% loop $Devices %>
-                    <div class="dsp-card audio-device-card" data-device-id="$ID" data-location-id="$LocationID" style="display:none;">
+                    <div class="dsp-card audio-device-card" data-device-id="$ID" data-location-id="$LocationID" data-device-model="$DeviceModel" style="display:none;">
                         <div class="dsp-header">
                             <span class="dsp-title">$Title</span>
-                            <span class="dsp-meta">$DeviceModel | $IPAddress</span>
+                            <span class="dsp-meta" data-status-meta>$DeviceModel | $IPAddress — Syncing…</span>
                         </div>
 
-                        <div class="audio-controls">
-                            <div class="control-group">
-                                <label>Master Out</label>
-                                <div class="slider-mute-row"><div class="slider-mute-row"><input type="range" class="glass-slider vol-slider" min="0" max="100" value="50" data-channel="master"><button class="btn-mute" data-action="mute" data-channel="master">Mute</button></div></div>
-                            </div>
-
-                            <div class="control-group">
-                                <label>Mic 1 In</label>
-                                <div class="slider-mute-row"><div class="slider-mute-row"><input type="range" class="glass-slider vol-slider" min="0" max="100" value="70" data-channel="mic1"><button class="btn-mute" data-action="mute" data-channel="mic1">Mute</button></div></div>
-                            </div>
+                        <div class="audio-controls" data-channels-container>
+                            <div style="opacity:0.75; padding:12px 0;">Loading channels from $Title…</div>
                         </div>
                     </div>
                 <% end_loop %>
@@ -101,5 +96,6 @@
 
 <div id="status-toast" class="status-toast"></div>
 <% include App\DTX\Includes\PanelAudioJS %>
+<script src="/js/nav-overflow.js?v=53"></script>
 </body>
 </html>

@@ -62,15 +62,19 @@
             margin: 0 0 12px 0;
         }
         .splash-prompt {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 12px 28px;
-            border-radius: 999px;
-            font-size: 1rem;
-            font-weight: 600;
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            margin-top: 28px !important;
+            padding: 24px 56px !important;
+            min-height: 80px !important;
+            min-width: 340px !important;
+            border-radius: 999px !important;
+            font-size: 1.5rem !important;
+            font-weight: 700 !important;
             letter-spacing: 0.04em;
-            background: rgba(56, 189, 248, 0.18);
-            border: 1px solid rgba(56, 189, 248, 0.45);
+            background: rgba(56, 189, 248, 0.22);
+            border: 2px solid rgba(56, 189, 248, 0.65);
             color: #38bdf8;
             animation: pulsePrompt 2.4s infinite ease-in-out;
         }

@@ -4,10 +4,10 @@ namespace App\DTX\Controller;
 
 use App\Contract\TouchPanelModuleInterface;
 use App\DTX\Model\DTXDevice;
-use App\Security\PanelPermissionProvider;
-use App\Security\PanelSecurityGuard;
 use App\DTX\Service\DTXAudioService;
 use App\DTX\Service\DTXDiscoveryService;
+use App\Security\PanelPermissionProvider;
+use App\Security\PanelSecurityGuard;
 use App\Traits\TouchPanelControllerTrait;
 use Exception;
 use SilverStripe\Control\Controller;
@@ -112,9 +112,9 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
 
         $data = $this->parseRequestData($request);
         $deviceId = (int) ($data['device_id'] ?? 0);
-        $action = trim((string) ($data['action'] ?? ''));
+        $action = strtolower(trim((string) ($data['action'] ?? '')));
         $channel = trim((string) ($data['channel'] ?? ''));
-        $value = $data['value'] ?? null;
+        $value = $data['value'] ?? ($data['level'] ?? null);
 
         $device = DTXDevice::get()->byID($deviceId);
         if (!$device) {
@@ -125,35 +125,46 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
             $service = new DTXAudioService($device->IPAddress, (int) ($device->ControlPort ?: 5000));
 
             switch ($action) {
+                case 'state':
+                case 'getstate':
+                    $state = $service->getDeviceState((string) ($device->DeviceModel ?: 'DTX-44'));
+                    return $this->jsonResponse([
+                        'success' => true,
+                        'online' => $state['online'],
+                        'model' => $state['model'],
+                        'channels' => $state['channels'],
+                    ]);
+
                 case 'volume':
+                case 'setvolume':
                 case 'gain':
-                    $service->setChannelVolume($channel, (float) $value);
-                    break;
+                    $sliderVal = (float) $value;
+                    $service->setChannelVolume($channel, $sliderVal);
+                    $db = round(DTXAudioService::sliderToDecibels($sliderVal), 1);
+                    $this->extend('onPanelAudit', 'Audio_Control', "DTX volume on {$device->Title}", "Channel: {$channel}, Value: {$sliderVal}% ({$db} dB)", true, '');
+                    return $this->jsonResponse(['success' => true, 'db' => $db]);
+
                 case 'mute':
-                    $service->setChannelMute($channel, filter_var($value, FILTER_VALIDATE_BOOLEAN));
-                    break;
+                    $muteBool = ($value === null) ? true : filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                    $service->setChannelMute($channel, $muteBool);
+                    $this->extend('onPanelAudit', 'Audio_Control', "DTX mute on {$device->Title}", "Channel: {$channel}, Muted: " . ($muteBool ? 'Yes' : 'No'), true, '');
+                    return $this->jsonResponse(['success' => true, 'muted' => $muteBool]);
+
+                case 'unmute':
+                    $service->setChannelMute($channel, false);
+                    $this->extend('onPanelAudit', 'Audio_Control', "DTX unmute on {$device->Title}", "Channel: {$channel}, Muted: No", true, '');
+                    return $this->jsonResponse(['success' => true, 'muted' => false]);
+
                 case 'preset':
                     $service->recallPreset((int) $value);
-                    break;
+                    $this->extend('onPanelAudit', 'Audio_Control', "DTX preset on {$device->Title}", "Preset: {$value}", true, '');
+                    return $this->jsonResponse(['success' => true]);
+
                 default:
                     throw new Exception("Unsupported DTX action: {$action}");
             }
-
-            $auditArgs = ['Audio_Control',
-                "DTX {$action} on {$device->Title}",
-                "Channel: {$channel}, Value: {$value}",
-                true,
-                ''];
-        $this->extend('onPanelAudit', ...$auditArgs);
-
-            return $this->jsonResponse(['success' => true]);
         } catch (Throwable $e) {
-            $auditArgs = ['Audio_Control',
-                "DTX {$action} failed on {$device->Title}",
-                "Channel: {$channel}, Value: {$value}",
-                false,
-                $e->getMessage()];
-        $this->extend('onPanelAudit', ...$auditArgs);
+            $this->extend('onPanelAudit', 'Audio_Control', "DTX {$action} failed on {$device->Title}", "Channel: {$channel}, Value: {$value}", false, $e->getMessage());
 
             return $this->jsonResponse([
                 'success' => false,
@@ -201,25 +212,27 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
 
         try {
             $data = $this->parseRequestData($request);
-            $ip = trim((string) ($data['ip'] ?? ''));
-            if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-                return $this->jsonResponse(['success' => false, 'error' => 'Invalid IP address.'], 400);
-            }
+            $items = $data['devices'] ?? [];
+            $imported = 0;
 
-            $device = DTXDevice::get()->filter('IPAddress', $ip)->first() ?: DTXDevice::create();
-            $device->Title = trim((string) ($data['title'] ?? '')) ?: 'Aurora DTX (' . $ip . ')';
-            $device->IPAddress = $ip;
-            $device->ControlPort = (int) ($data['controlPort'] ?? 5000) ?: 5000;
-            $device->DeviceModel = in_array(($data['model'] ?? ''), ['DTX-44', 'DTX-88'], true)
-                ? $data['model']
-                : 'DTX-44';
-            $device->Active = 1;
-            $device->write();
+            foreach ($items as $item) {
+                $ip = trim((string) ($item['ip'] ?? ''));
+                if ($ip === '') {
+                    continue;
+                }
+                $dev = DTXDevice::get()->filter('IPAddress', $ip)->first() ?: DTXDevice::create();
+                $dev->Title = trim((string) ($item['title'] ?? $item['hostname'] ?? "DTX ({$ip})"));
+                $dev->IPAddress = $ip;
+                $dev->ControlPort = (int) ($item['controlPort'] ?? 5000);
+                $dev->DeviceModel = ($item['model'] ?? '') === 'DTX-88' ? 'DTX-88' : 'DTX-44';
+                $dev->Active = 1;
+                $dev->write();
+                $imported++;
+            }
 
             return $this->jsonResponse([
                 'success' => true,
-                'id' => (int) $device->ID,
-                'title' => $device->Title,
+                'imported' => $imported,
             ]);
         } catch (Throwable $e) {
             return $this->jsonResponse([

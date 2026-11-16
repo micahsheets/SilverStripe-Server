@@ -4,6 +4,7 @@ namespace App\VPX\Controller;
 
 use App\Contract\TouchPanelModuleInterface;
 use App\Model\PanelSettings;
+use App\VPX\Model\VPXSettings;
 use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
@@ -80,10 +81,12 @@ class VPXController extends Controller implements TouchPanelModuleInterface, Per
 
         $session->save($request);
         $branding = PanelSettings::current();
+        $vpxSettings = VPXSettings::current();
 
         return $this->customise([
             'PanelSettings' => $branding,
             'SiteConfig' => $branding,
+            'VPXSettings' => $vpxSettings,
         ])->renderWith([
             'App\\VPX\\Controller\\TouchPanelVideo',
             'Page',

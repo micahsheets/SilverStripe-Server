@@ -32,6 +32,10 @@ class PanelAuthController extends Controller
     protected function init(): void
     {
         parent::init();
+        $res = $this->getResponse();
+        $res->addHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        $res->addHeader("Pragma", "no-cache");
+        $res->addHeader("Expires", "0");
         if (!PanelSecurityGuard::isIPAllowed($this->getRequest())) {
             $this->httpError(403, 'Access denied from this network.');
         }

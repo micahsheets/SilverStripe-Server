@@ -9,8 +9,8 @@ use App\Model\PanelSettings;
 class AVSettingsAdmin extends ModelAdmin
 {
     private static array $managed_models = [
-        SystemModule::class,
         PanelSettings::class,
+        SystemModule::class,
     ];
 
     private static string $url_segment = 'av-settings';

@@ -6,8 +6,31 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - Shure P300 DSP</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=29">
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+<% if $PanelSettings.PanelBackground %>
+<style>
+    html body {
+        background-image:
+            linear-gradient(rgba(15, 23, 42, 0.{$PanelSettings.BackgroundOverlayOpacity}), rgba(15, 23, 42, 0.{$PanelSettings.BackgroundOverlayOpacity})),
+            url('$PanelSettings.PanelBackground.ScaleWidth(1920).URL') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-attachment: fixed !important;
+    }
+    html body[data-theme="light"] {
+        background-image:
+            linear-gradient(rgba(248, 250, 252, 0.{$PanelSettings.BackgroundOverlayOpacity}), rgba(248, 250, 252, 0.{$PanelSettings.BackgroundOverlayOpacity})),
+            url('$PanelSettings.PanelBackground.ScaleWidth(1920).URL') !important;
+    }
+    html body .panel-backdrop,
+    html body[data-theme="light"] .panel-backdrop {
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+</style>
+<% end_if %>
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
     <style>
         .p300-device-bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:16px; }
         .p300-hero-card {
@@ -81,35 +104,15 @@
         .p300-chan-num { font-size:0.75rem; opacity:0.7; font-weight:600; }
         .p300-chan-name { font-size:1rem; font-weight:700; }
         .p300-db-readout { font-family: monospace; font-size: 0.9rem; font-weight: 700; }
-        .p300-slider { width: 100%; accent-color: #38bdf8; height: 28px; cursor: pointer; }
+        .p300-slider { width: 100%; accent-color: #38bdf8; height: 48px; cursor: pointer; }
         .slider-mute-row {
             display: flex;
             align-items: center;
             gap: 8px;
             width: 100%;
         }
-        .slider-mute-row .p300-slider {
-            flex: 1 1 auto;
-            min-width: 0;
-            width: auto;
-        }
-        .p300-chan-mute {
-            flex: 0 0 28px;
-            width: 28px;
-            height: 28px;
-            padding: 0;
-            border-radius: 6px;
-            border: 1px solid rgba(148, 163, 184, 0.35);
-            background: rgba(51, 65, 85, 0.55);
-            color: inherit;
-            font-size: 0.62rem;
-            font-weight: 800;
-            letter-spacing: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
+        .slider-mute-row .p300-slider { width: 100%; accent-color: #38bdf8; height: 48px; cursor: pointer; }
+        .p300-chan-mute { flex: 0 0 90px; width: 90px; min-width: 90px; height: 48px; padding: 0 10px; border-radius: 16px; border: 2px solid rgba(148, 163, 184, 0.45); background: rgba(30, 41, 59, 0.85); color: inherit; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.03em; display: inline-flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
         .p300-chan-mute.is-muted {
             background: #dc2626;
             border-color: #ef4444;
@@ -159,5 +162,6 @@
 
 <div id="toast"></div>
 <% include App\P300\Includes\PanelP300JS %>
+<script src="/js/nav-overflow.js?v=53"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>Discover Devices<% if $PanelSettings.PanelTitle %> — $PanelSettings.PanelTitle<% end_if %></title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=28">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
     <style>
         .scan-bar { display: flex; gap: 12px; background: var(--card-bg); padding: 18px; border-radius: 16px; border: 1px solid var(--card-border); flex-wrap: wrap; align-items: center; }
         .scan-input { background: var(--control-bg); border: 1px solid var(--card-border); color: var(--text-main); padding: 11px 14px; border-radius: 10px; font-size: 0.95rem; min-width: 240px; }
@@ -41,7 +41,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=28">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
 </head>
 <body class="discover-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
 <div class="panel-backdrop">
@@ -94,5 +94,6 @@
 
 <div id="toast"></div>
 <script src="/js/panel-discover.js"></script>
+<script src="/js/nav-overflow.js?v=53"></script>
 </body>
 </html>

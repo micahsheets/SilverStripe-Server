@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Lighting Control</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
     <style>
         #enttec-device-meta { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.4; }
         .toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
@@ -104,7 +104,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
 </head>
 <body class="lighting-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
 <div class="panel-backdrop">
@@ -204,5 +204,6 @@
 
 <div id="status-toast" class="status-toast"></div>
 <% include App\Enttec\Includes\PanelLightingJS %>
+<script src="/js/nav-overflow.js?v=53"></script>
 </body>
 </html>

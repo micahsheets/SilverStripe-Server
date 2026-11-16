@@ -148,6 +148,17 @@ function renderPresets() {
     );
     section.style.display = visiblePresets.length ? 'block' : 'none';
 
+    const count = visiblePresets.length;
+    if (document.body.classList.contains('presets-only-mode')) {
+        const cols = count <= 1 ? 1 : (count <= 4 ? 2 : (count <= 9 ? 3 : 4));
+        const rows = Math.max(1, Math.ceil(count / cols));
+        container.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        container.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+    } else {
+        container.style.gridTemplateColumns = '';
+        container.style.gridTemplateRows = '';
+    }
+
     visiblePresets.forEach(preset => {
         const btn = document.createElement('button');
         btn.className = 'preset-btn';

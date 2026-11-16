@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - RØDECaster Video</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,7 +30,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=9">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
     <% include App\RodeCaster\Includes\RodeCasterPanelCSS %>
     <style>
         .rc-mode-controls {
@@ -161,5 +161,6 @@
 
 <div id="toast"></div>
 <% include App\RodeCaster\Includes\PanelRodeCasterJS %>
+<script src="/js/nav-overflow.js?v=53"></script>
 </body>
 </html>

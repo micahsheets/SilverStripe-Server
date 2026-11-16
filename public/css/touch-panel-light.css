@@ -219,3 +219,39 @@ body[data-theme="light"] .device-tabs .device-tab.active {
     color: #ffffff !important;
     box-shadow: 0 4px 14px rgba(147, 51, 234, 0.35) !important;
 }
+
+@media (max-width: 800px) {
+    body[data-theme="light"] .nav-pill,
+    body[data-theme="light"] .room-tab,
+    body[data-theme="light"] .device-tab {
+        background: rgba(255, 255, 255, 0.94) !important;
+        border: 1.5px solid rgba(15, 23, 42, 0.25) !important;
+        color: #0f172a !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14) !important;
+    }
+    body[data-theme="light"] .nav-pill.active,
+    body[data-theme="light"] .room-tab.active,
+    body[data-theme="light"] .device-tab.active {
+        background: #0284c7 !important;
+        border-color: #0369a1 !important;
+        color: #ffffff !important;
+    }
+    body[data-theme="light"] .column-box {
+        background: rgba(255, 255, 255, 0.94) !important;
+    }
+}
+
+
+body[data-theme="light"] .nav-more-dropdown {
+    background: rgba(255, 255, 255, 0.97) !important;
+    border-color: rgba(15, 23, 42, 0.22) !important;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.2) !important;
+}
+body[data-theme="light"] .nav-more-dropdown .nav-pill.nav-dropdown-item {
+    background: rgba(241, 245, 249, 0.95) !important;
+    color: #0f172a !important;
+}
+body[data-theme="light"] .nav-more-dropdown .nav-pill.nav-dropdown-item.active {
+    background: #0284c7 !important;
+    color: #ffffff !important;
+}

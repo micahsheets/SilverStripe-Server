@@ -4,26 +4,110 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>Unlock AV Touch Panel<% end_if %></title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=28">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
     <style>
-        body.lock-panel { justify-content: center; align-items: center; padding: 24px; }
-        .lock-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 28px; width: 320px; text-align: center; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); }
-        .pin-display { background: var(--control-bg); border: 1px solid var(--card-border); color: var(--accent); font-size: 1.8rem; letter-spacing: 8px; padding: 12px; border-radius: 12px; margin: 16px 0; min-height: 56px; }
-        .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .key-btn { background: var(--control-bg); border: 1px solid var(--card-border); color: var(--text-main); font-size: 1.4rem; font-weight: 700; padding: 16px; border-radius: 12px; cursor: pointer; }
-        .key-btn:active { background: var(--accent); color: #0f172a; }
-        .key-btn.submit { background: var(--success); border-color: var(--success); color: #0f172a; }
-        .key-btn.clear { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.42); color: #fca5a5; font-size: 1rem; }
-        body[data-theme="light"] .key-btn.clear { background: rgba(254, 226, 226, 0.85); color: #b91c1c; }
-        .err-msg { color: #fca5a5; font-size: 0.85rem; margin-bottom: 10px; }
-        body[data-theme="light"] .err-msg { color: #b91c1c; }
+        body.lock-panel {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .lock-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 28px;
+            padding: 32px 36px;
+            width: 100%;
+            max-width: 560px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+            box-sizing: border-box;
+        }
+        .lock-title {
+            margin: 0;
+            font-size: 1.85rem;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+        }
+        .pin-display {
+            background: var(--control-bg);
+            border: 2px solid var(--card-border);
+            color: var(--accent);
+            font-size: 2.6rem;
+            letter-spacing: 14px;
+            padding: 14px 20px;
+            border-radius: 16px;
+            margin: 20px 0 24px 0;
+            min-height: 76px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        .key-btn {
+            background: var(--control-bg);
+            border: 2px solid var(--card-border);
+            color: var(--text-main);
+            font-size: 2.15rem;
+            font-weight: 700;
+            min-height: 88px;
+            padding: 16px;
+            border-radius: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.08s ease, background-color 0.12s ease;
+        }
+        .key-btn:active {
+            background: var(--accent);
+            color: #0f172a;
+            transform: scale(0.97);
+        }
+        .key-btn.submit {
+            background: var(--success);
+            border-color: var(--success);
+            color: #0f172a;
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+        }
+        .key-btn.clear {
+            background: rgba(239, 68, 68, 0.22);
+            border-color: rgba(239, 68, 68, 0.55);
+            color: #fca5a5;
+            font-size: 1.45rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+        }
+        body[data-theme="light"] .key-btn.clear {
+            background: rgba(254, 226, 226, 0.9);
+            border-color: rgba(220, 38, 38, 0.5);
+            color: #b91c1c;
+        }
+        .err-msg {
+            color: #fca5a5;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 14px;
+        }
+        body[data-theme="light"] .err-msg {
+            color: #b91c1c;
+        }
     </style>
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
         background-image:
             linear-gradient(rgba(15, 23, 42, 0.{$PanelSettings.BackgroundOverlayOpacity}), rgba(15, 23, 42, 0.{$PanelSettings.BackgroundOverlayOpacity})),
-            url('$PanelSettings.PanelBackground.ScaleWidth(1920).URL') !important;
+            url("$PanelSettings.PanelBackground.ScaleWidth(1920).URL") !important;
         background-size: cover !important;
         background-position: center !important;
         background-attachment: fixed !important;
@@ -31,18 +115,18 @@
     html body[data-theme="light"] {
         background-image:
             linear-gradient(rgba(248, 250, 252, 0.{$PanelSettings.BackgroundOverlayOpacity}), rgba(248, 250, 252, 0.{$PanelSettings.BackgroundOverlayOpacity})),
-            url('$PanelSettings.PanelBackground.ScaleWidth(1920).URL') !important;
+            url("$PanelSettings.PanelBackground.ScaleWidth(1920).URL") !important;
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=28">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
 </head>
 <body class="lock-panel" data-theme="$PanelTheme">
     <form class="lock-box" method="POST" action="/panel/unlock">
         <% if $PanelSettings.PanelLogo.exists %>
-            <img src="$PanelSettings.PanelLogo.ScaleHeight(44).URL" alt="Logo" style="max-height:44px; width:auto; margin-bottom:10px;">
+            <img src="$PanelSettings.PanelLogo.ScaleHeight(64).URL" alt="Logo" style="max-height:64px; width:auto; margin-bottom:12px;">
         <% end_if %>
-        <h2 style="margin:0;"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV PANEL LOCKED<% end_if %></h2>
+        <h2 class="lock-title"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV PANEL LOCKED<% end_if %></h2>
         <div class="pin-display" id="pinDots"></div>
         <% if $ErrorMessage %><div class="err-msg">$ErrorMessage</div><% end_if %>
         <input type="hidden" name="SecurityID" value="$CSRFToken">
@@ -63,12 +147,12 @@
         </div>
     </form>
     <script>
-        let pin = '';
+        let pin = "";
         function addDigit(d) { if (pin.length < 8) { pin += d; updatePin(); } }
-        function clearPin() { pin = ''; updatePin(); }
+        function clearPin() { pin = ""; updatePin(); }
         function updatePin() {
-            document.getElementById('pinInput').value = pin;
-            document.getElementById('pinDots').textContent = '•'.repeat(pin.length);
+            document.getElementById("pinInput").value = pin;
+            document.getElementById("pinDots").textContent = "•".repeat(pin.length);
         }
     </script>
 </body>

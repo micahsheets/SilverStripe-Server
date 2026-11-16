@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - Video Matrix</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,10 +30,10 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
     <% include App\VPX\Includes\VPXPreviewCSS %>
 </head>
-<body class="video-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
+<body class="video-panel<% if $VPXSettings.PresetsOnlyMode %> presets-only-mode<% end_if %>" data-theme="$PanelTheme" data-csrf="$SecurityID">
 <div class="panel-backdrop">
 
     <header class="panel-header">
@@ -101,5 +101,6 @@
 <div id="toast"></div>
 <% include App\VPX\Includes\PanelVPXApiJS %>
 <% include App\VPX\Includes\PanelVPXUiJS %>
+<script src="/js/nav-overflow.js?v=53"></script>
 </body>
 </html>

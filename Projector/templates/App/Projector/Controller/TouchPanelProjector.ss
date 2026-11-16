@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Projector Control</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -28,7 +28,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=29">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
 </head>
 <body class="projector-panel" data-theme="$PanelTheme" data-csrf="$CSRFToken">
 <div class="panel-backdrop">
@@ -94,5 +94,6 @@
 
 <div id="status-toast" class="status-toast"></div>
 <% include App\Projector\Includes\PanelProjectorJS %>
+<script src="/js/nav-overflow.js?v=53"></script>
 </body>
 </html>
