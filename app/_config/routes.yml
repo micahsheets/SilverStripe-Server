@@ -1,9 +1,16 @@
 ---
 Name: approutes
-Before:
+After:
+  - '#rootroutes'
   - '#coreroutes'
+  - '#cmsroutes'
 ---
 SilverStripe\Control\Director:
   rules:
-    'api/vpx//$Action/$ID': App\Controller\UDPController
-    'panel//$Action/$ID': App\Controller\TouchPanelController
+    '': 'App\Controller\TouchPanelSplashController'
+    'panel/splash//$Action/$ID': 'App\Controller\TouchPanelSplashController'
+    'panel/pin//$Action/$ID': 'App\Controller\PanelAuthController'
+    'panel/unlock//$Action/$ID': 'App\Controller\PanelAuthController'
+    'panel/lock//$Action/$ID': 'App\Controller\PanelAuthController'
+    'panel/discover//$Action/$ID': 'App\Controller\PanelAuthController'
+    'panel//$Action/$ID': 'App\Controller\TouchPanelSplashController'

@@ -1,0 +1,24 @@
+---
+Name: module-enttec
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/lighting//$Action/$ID': 'App\Enttec\Controller\EnttecController'
+    'api/enttec//$Action/$ID': 'App\Enttec\Controller\EnttecController'
+
+SilverStripe\ORM\DatabaseAdmin:
+  classname_value_remapping:
+    App\Model\EnttecDevice: App\Enttec\Model\EnttecDevice
+
+App\Enttec\Controller\EnttecController:
+  extensions:
+    - App\Enttec\Extensions\EnttecAuditExtension
+
+App\Enttec\Service\EnttecSPlayService:
+  extensions:
+    - App\Enttec\Extensions\EnttecAuditExtension
+
+App\Enttec\Admin\EnttecAdmin:
+  managed_models:
+    - App\Enttec\Model\EnttecAuditLog

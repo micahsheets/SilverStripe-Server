@@ -1,0 +1,24 @@
+---
+Name: module-visca
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/camera//$Action/$ID': 'App\Visca\Controller\ViscaController'
+    'api/visca//$Action/$ID': 'App\Visca\Controller\ViscaController'
+
+SilverStripe\ORM\DatabaseAdmin:
+  classname_value_remapping:
+    App\Model\ViscaCamera: App\Visca\Model\ViscaCamera
+
+App\Visca\Controller\ViscaController:
+  extensions:
+    - App\Visca\Extensions\ViscaAuditExtension
+
+App\Visca\Service\ViscaService:
+  extensions:
+    - App\Visca\Extensions\ViscaAuditExtension
+
+App\Visca\Admin\CameraAdmin:
+  managed_models:
+    - App\Visca\Model\ViscaAuditLog

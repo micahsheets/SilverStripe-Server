@@ -1,0 +1,24 @@
+---
+Name: module-rodecaster
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/rodecaster//$Action/$ID': 'App\RodeCaster\Controller\RodeCasterController'
+    'api/rodecaster//$Action/$ID': 'App\RodeCaster\Controller\RodeCasterController'
+
+SilverStripe\ORM\DatabaseAdmin:
+  classname_value_remapping:
+    App\Model\RodeCasterDevice: App\RodeCaster\Model\RodeCasterDevice
+
+App\RodeCaster\Controller\RodeCasterController:
+  extensions:
+    - App\RodeCaster\Extensions\RodeCasterAuditExtension
+
+App\RodeCaster\Service\RodeCasterOSCService:
+  extensions:
+    - App\RodeCaster\Extensions\RodeCasterAuditExtension
+
+App\RodeCaster\Admin\RodeCasterAdmin:
+  managed_models:
+    - App\RodeCaster\Model\RodeCasterAuditLog

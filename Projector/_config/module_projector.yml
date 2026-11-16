@@ -1,0 +1,16 @@
+---
+Name: module-projector
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/projector//$Action/$ID': 'App\Projector\Controller\ProjectorController'
+    'api/projector//$Action/$ID': 'App\Projector\Controller\ProjectorController'
+
+App\Admin\AVSettingsAdmin:
+  extensions:
+    - App\Projector\Extensions\ProjectorAdminExtension
+
+SilverStripe\ORM\DatabaseAdmin:
+  classname_value_remapping:
+    App\Model\ProjectorDevice: App\Projector\Model\ProjectorDevice

@@ -1,0 +1,21 @@
+---
+Name: app-permissions-cleanup
+After:
+  - '#corepermissions'
+  - '#adminpermissions'
+---
+SilverStripe\Security\Permission:
+  hidden_permissions:
+    # Remove leftover SiteTree / Page & SiteConfig permissions (if any remain in DB/cache)
+    - SITETREE_VIEW_ALL
+    - SITETREE_EDIT_ALL
+    - SITETREE_REORGANISE
+    - SITETREE_GRANT_ACCESS
+    - SITETREE_GRANT_SECURITY
+    - VIEW_DRAFT_CONTENT
+    - EDIT_SITECONFIG
+    # Remove unused CMS admin sections if you only use AVSystemAdmin & SecurityAdmin
+    - CMS_ACCESS_CMSMain
+    - CMS_ACCESS_ReportAdmin
+    - CMS_ACCESS_SilverStripe\Reports\ReportAdmin
+    - CMS_ACCESS_SilverStripe\Admin\ModelAdmin

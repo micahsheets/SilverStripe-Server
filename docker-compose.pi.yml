@@ -1,0 +1,20 @@
+services:
+  web:
+    build: .
+    network_mode: host
+    restart: unless-stopped
+    command: >
+      sh -c "sed -i 's/^Listen 80$/Listen 0.0.0.0:80/' /etc/apache2/ports.conf && apache2-foreground"
+    environment:
+      SS_ENVIRONMENT_TYPE: live
+      SS_DATABASE_SERVER: 127.0.0.1
+      SS_BASE_URL: http://av-panel.local
+    depends_on:
+      - database
+
+  database:
+    image: mariadb:10.11
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3306:3306"
+    command: --innodb-buffer-pool-size=128M --max-connections=50

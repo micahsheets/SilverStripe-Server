@@ -1,0 +1,12 @@
+---
+Name: module-p300
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/p300//$Action/$ID': 'App\P300\Controller\P300Controller'
+    'api/p300//$Action/$ID': 'App\P300\Controller\P300Controller'
+
+App\P300\Service\P300Service:
+  extensions:
+    - App\P300\Extensions\P300AuditExtension
