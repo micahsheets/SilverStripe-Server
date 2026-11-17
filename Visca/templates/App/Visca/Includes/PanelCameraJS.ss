@@ -86,178 +86,170 @@
         });
     });
 
-    // Multi-camera Live Preview Stream Controller
-    const previewSelect = document.getElementById('camPreviewSelect');
+    // Single-selector Multi-Camera Preview & Control Switcher
+    const camTabsEl = document.getElementById('camera-device-tabs');
+    const camCards = Array.from(document.querySelectorAll('.cam-card[data-device-id]'));
     const previewImg = document.getElementById('camPreviewImg');
     const previewMsg = document.getElementById('camPreviewMsg');
     const previewLabel = document.getElementById('camPreviewLabel');
+    const previewActiveName = document.getElementById('camPreviewActiveName');
     const previewDot = document.getElementById('camPreviewDot');
     const previewToggleBtn = document.getElementById('btnCamPreviewToggle');
     const previewRefreshBtn = document.getElementById('btnCamPreviewRefresh');
 
+    let activeCamLocation = '0';
+    let activeCamId = camCards[0] ? String(camCards[0].dataset.deviceId) : '';
     let previewPaused = false;
     let previewTimer = null;
     let previewInFlight = false;
     let previewFailCount = 0;
 
-    function setPreviewCamera(camId) {
-        if (!previewSelect || !camId || camId === 'all') return;
-        const opt = Array.from(previewSelect.options).find(o => o.value === String(camId));
-        if (opt && previewSelect.value !== String(camId)) {
-            previewSelect.value = String(camId);
-            previewFailCount = 0;
-            if (previewMsg) {
-                previewMsg.textContent = 'Switching camera feed…';
-                previewMsg.style.display = 'flex';
-            }
-            requestNextFrame(true);
-        }
+    function getActiveCameraMeta() {
+        const card = camCards.find(c => String(c.dataset.deviceId) === activeCamId);
+        if (!card) return null;
+        const title = card.dataset.title || card.querySelector('h3')?.textContent.trim() || `Camera ${activeCamId}`;
+        const ip = card.dataset.ip || '';
+        return {
+            id: activeCamId,
+            title: title,
+            display: ip ? `${title} (${ip})` : title
+        };
     }
 
     function requestNextFrame(immediate = false) {
         clearTimeout(previewTimer);
-        if (!previewSelect || !previewImg || previewPaused || document.hidden) return;
+        if (!previewImg || !activeCamId || previewPaused || document.hidden) return;
         const delay = immediate ? 10 : (previewFailCount > 0 ? Math.min(2500, 500 * previewFailCount) : 220);
         previewTimer = setTimeout(() => {
-            if (previewPaused || document.hidden || previewInFlight) return;
-            const camId = previewSelect.value;
-            if (!camId) return;
-            const optText = previewSelect.options[previewSelect.selectedIndex]?.text || `Camera ${camId}`;
+            if (previewPaused || document.hidden || previewInFlight || !activeCamId) return;
+            const camMeta = getActiveCameraMeta();
+            if (!camMeta) return;
+            const targetId = camMeta.id;
             previewInFlight = true;
 
             const loader = new Image();
             loader.onload = () => {
                 previewInFlight = false;
+                if (targetId !== activeCamId) {
+                    requestNextFrame(true);
+                    return;
+                }
                 previewFailCount = 0;
                 previewImg.src = loader.src;
                 if (previewMsg) previewMsg.style.display = 'none';
-                if (previewLabel) previewLabel.textContent = `LIVE • ${optText}`;
+                if (previewLabel) previewLabel.textContent = `LIVE • ${camMeta.display}`;
                 if (previewDot) previewDot.style.background = '#22c55e';
                 requestNextFrame(false);
             };
             loader.onerror = () => {
                 previewInFlight = false;
+                if (targetId !== activeCamId) {
+                    requestNextFrame(true);
+                    return;
+                }
                 previewFailCount++;
-                if (previewLabel) previewLabel.textContent = `OFFLINE • ${optText}`;
+                if (previewLabel) previewLabel.textContent = `OFFLINE • ${camMeta.display}`;
                 if (previewDot) previewDot.style.background = '#f59e0b';
                 if (previewMsg && previewFailCount >= 2) {
-                    previewMsg.textContent = `No snapshot stream available from ${optText}. Check camera IP/network or enable HTTP/ONVIF snapshot on camera.`;
+                    previewMsg.textContent = `No snapshot stream available from ${camMeta.display}. Check camera IP/network or enable HTTP/ONVIF snapshot on camera.`;
                     previewMsg.style.display = 'flex';
                 }
                 requestNextFrame(false);
             };
-            loader.src = `/panel/camera/snapshot?id=${encodeURIComponent(camId)}&_t=${Date.now()}`;
+            loader.src = `/panel/camera/snapshot?id=${encodeURIComponent(targetId)}&_t=${Date.now()}`;
         }, delay);
     }
 
-    if (previewSelect) {
-        previewSelect.addEventListener('change', () => {
-            previewFailCount = 0;
-            if (previewMsg) {
-                previewMsg.textContent = 'Loading camera preview…';
-                previewMsg.style.display = 'flex';
-            }
-            requestNextFrame(true);
-        });
-        if (previewToggleBtn) {
-            previewToggleBtn.addEventListener('click', () => {
-                previewPaused = !previewPaused;
-                previewToggleBtn.textContent = previewPaused ? 'Resume' : 'Pause';
-                if (previewPaused) {
-                    clearTimeout(previewTimer);
-                    if (previewDot) previewDot.style.background = '#94a3b8';
-                    if (previewLabel) previewLabel.textContent = 'PAUSED';
-                } else {
-                    requestNextFrame(true);
-                }
-            });
-        }
-        if (previewRefreshBtn) {
-            previewRefreshBtn.addEventListener('click', () => {
-                previewFailCount = 0;
-                requestNextFrame(true);
-            });
-        }
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && !previewPaused) {
-                requestNextFrame(true);
-            }
-        });
-        requestNextFrame(true);
-    }
+    function applyCameraSelection(switchStream = false) {
+        const visibleCards = camCards.filter(card =>
+            activeCamLocation === '0' || String(card.dataset.locationId || '0') === activeCamLocation
+        );
 
-    const camTabsEl = document.getElementById('camera-device-tabs');
-    const camCards = Array.from(document.querySelectorAll('.cam-card[data-device-id]'));
-    let activeCamLocation = '0';
-    let activeCamId = 'all';
+        if (visibleCards.length > 0 && !visibleCards.some(c => String(c.dataset.deviceId) === activeCamId)) {
+            activeCamId = String(visibleCards[0].dataset.deviceId);
+            switchStream = true;
+        } else if (visibleCards.length === 0) {
+            activeCamId = '';
+        }
 
-    function applyCameraFilters() {
         camCards.forEach(card => {
             const locMatch = activeCamLocation === '0' || String(card.dataset.locationId || '0') === activeCamLocation;
-            const devMatch = activeCamId === 'all' || String(card.dataset.deviceId) === activeCamId;
+            const devMatch = String(card.dataset.deviceId) === activeCamId;
             card.style.display = (locMatch && devMatch) ? '' : 'none';
         });
+
         if (camTabsEl) {
             Array.from(camTabsEl.children).forEach(btn => {
-                const devId = btn.dataset.deviceId;
-                if (devId === 'all') {
-                    btn.style.display = '';
-                } else {
-                    const locMatch = activeCamLocation === '0' || String(btn.dataset.locationId || '0') === activeCamLocation;
-                    btn.style.display = locMatch ? '' : 'none';
-                }
-                btn.classList.toggle('active', devId === activeCamId);
+                const locMatch = activeCamLocation === '0' || String(btn.dataset.locationId || '0') === activeCamLocation;
+                btn.style.display = locMatch ? '' : 'none';
+                btn.classList.toggle('active', String(btn.dataset.deviceId) === activeCamId);
             });
         }
-        if (previewSelect) {
-            let firstVisibleVal = '';
-            Array.from(previewSelect.options).forEach(opt => {
-                const locMatch = activeCamLocation === '0' || String(opt.dataset.locationId || '0') === activeCamLocation;
-                opt.hidden = !locMatch;
-                if (locMatch && !firstVisibleVal) firstVisibleVal = opt.value;
-            });
-            if (activeCamId !== 'all') {
-                setPreviewCamera(activeCamId);
-            } else if (firstVisibleVal && previewSelect.options[previewSelect.selectedIndex]?.hidden) {
-                setPreviewCamera(firstVisibleVal);
+
+        const camMeta = getActiveCameraMeta();
+        if (previewActiveName) {
+            previewActiveName.textContent = camMeta ? `— ${camMeta.display}` : '';
+        }
+
+        if (switchStream && camMeta) {
+            previewFailCount = 0;
+            if (previewMsg) {
+                previewMsg.textContent = `Connecting to ${camMeta.display}…`;
+                previewMsg.style.display = 'flex';
             }
+            if (previewLabel) previewLabel.textContent = `Connecting • ${camMeta.display}`;
+            requestNextFrame(true);
         }
     }
 
     if (camTabsEl && camCards.length > 0) {
-        const allCamBtn = document.createElement('button');
-        allCamBtn.type = 'button';
-        allCamBtn.className = 'device-tab active';
-        allCamBtn.dataset.deviceId = 'all';
-        allCamBtn.textContent = 'All Cameras';
-        allCamBtn.addEventListener('click', () => {
-            activeCamId = 'all';
-            applyCameraFilters();
-        });
-        camTabsEl.appendChild(allCamBtn);
-
         camCards.forEach(card => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'device-tab';
             btn.dataset.deviceId = card.dataset.deviceId;
             btn.dataset.locationId = card.dataset.locationId || '0';
-            const titleEl = card.querySelector('h3');
-            btn.textContent = titleEl ? titleEl.textContent.trim() : ('Camera ' + card.dataset.deviceId);
+            btn.textContent = card.dataset.title || card.querySelector('h3')?.textContent.trim() || ('Camera ' + card.dataset.deviceId);
             btn.addEventListener('click', () => {
-                activeCamId = card.dataset.deviceId;
-                applyCameraFilters();
+                const changed = activeCamId !== String(card.dataset.deviceId);
+                activeCamId = String(card.dataset.deviceId);
+                applyCameraSelection(changed);
             });
             camTabsEl.appendChild(btn);
         });
+        applyCameraSelection(true);
     }
+
+    if (previewToggleBtn) {
+        previewToggleBtn.addEventListener('click', () => {
+            previewPaused = !previewPaused;
+            previewToggleBtn.textContent = previewPaused ? 'Resume' : 'Pause';
+            if (previewPaused) {
+                clearTimeout(previewTimer);
+                if (previewDot) previewDot.style.background = '#94a3b8';
+                if (previewLabel) previewLabel.textContent = 'PAUSED';
+            } else {
+                requestNextFrame(true);
+            }
+        });
+    }
+    if (previewRefreshBtn) {
+        previewRefreshBtn.addEventListener('click', () => {
+            previewFailCount = 0;
+            requestNextFrame(true);
+        });
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && !previewPaused) {
+            requestNextFrame(true);
+        }
+    });
 
     document.querySelectorAll('.unified-room-tabs .room-tab').forEach(rBtn => {
         rBtn.addEventListener('click', () => {
             activeCamLocation = rBtn.dataset.locationId || '0';
-            activeCamId = 'all';
             document.querySelectorAll('.unified-room-tabs .room-tab').forEach(b => b.classList.toggle('active', b === rBtn));
-            applyCameraFilters();
+            applyCameraSelection(true);
         });
     });
 

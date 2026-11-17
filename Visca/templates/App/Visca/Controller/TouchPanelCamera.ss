@@ -113,16 +113,6 @@
             color: #94a3b8;
             background: rgba(2, 6, 23, 0.72);
         }
-        .cam-preview-select {
-            background: rgba(15, 23, 42, 0.92);
-            border: 1px solid rgba(56, 189, 248, 0.4);
-            color: #f8fafc;
-            padding: 6px 10px;
-            border-radius: 10px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            max-width: 100%;
-        }
         .cam-workspace .camera-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -217,11 +207,7 @@
                     <div class="cam-preview-header">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                             <strong style="color:var(--cam-accent, #38bdf8); font-size:0.95rem;">Live Preview</strong>
-                            <select id="camPreviewSelect" class="cam-preview-select" aria-label="Select preview camera">
-                                <% loop $Cameras %>
-                                    <option value="$ID" data-location-id="$LocationID">$Title ($IPAddress)</option>
-                                <% end_loop %>
-                            </select>
+                            <span id="camPreviewActiveName" style="font-size:0.85rem; opacity:0.8;"></span>
                         </div>
                         <div style="display:flex; align-items:center; gap:6px;">
                             <button type="button" id="btnCamPreviewToggle" class="nav-pill" style="padding:5px 11px; font-size:0.78rem;">Pause</button>
@@ -240,7 +226,7 @@
 
                 <div class="camera-grid">
                     <% loop $Cameras %>
-                        <div class="cam-card" data-device-id="$ID" data-location-id="$LocationID">
+                        <div class="cam-card" data-device-id="$ID" data-location-id="$LocationID" data-title="$Title" data-ip="$IPAddress">
                             <h3 style="color:var(--cam-accent); margin-top:0;">$Title</h3>
 
                             <div class="d-pad">
