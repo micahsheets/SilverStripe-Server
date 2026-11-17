@@ -30,26 +30,41 @@
 <% end_if %>
     <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
     <style>
+        .cam-workspace {
+            display: grid;
+            grid-template-columns: minmax(320px, 1.3fr) minmax(290px, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+        @media (max-width: 820px) {
+            .cam-workspace {
+                grid-template-columns: 1fr;
+            }
+        }
         .cam-preview-card {
             background: var(--card-bg, rgba(15, 23, 42, 0.78));
             border: 1px solid var(--card-border, rgba(148, 163, 184, 0.22));
             border-radius: 18px;
             padding: 14px;
-            margin-bottom: 18px;
+            position: sticky;
+            top: 12px;
+        }
+        @media (max-width: 820px) {
+            .cam-preview-card {
+                position: static;
+            }
         }
         .cam-preview-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
             margin-bottom: 10px;
         }
         .cam-preview-stage {
             position: relative;
             width: 100%;
-            max-width: 760px;
-            margin: 0 auto;
             aspect-ratio: 16 / 9;
             background: #020617;
             border-radius: 12px;
@@ -106,6 +121,12 @@
             border-radius: 10px;
             font-size: 0.85rem;
             font-weight: 600;
+            max-width: 100%;
+        }
+        .cam-workspace .camera-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
         }
         .ptz-discover-modal {
             display: none;
@@ -189,67 +210,69 @@
         </div>
 
         <% if $Cameras %>
-            <div id="camera-device-tabs" class="device-tabs" style="margin-bottom:14px;"></div>
+            <div id="camera-device-tabs" class="device-tabs" style="margin-bottom:16px;"></div>
 
-            <div class="cam-preview-card" id="camPreviewCard">
-                <div class="cam-preview-header">
-                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <strong style="color:var(--cam-accent, #38bdf8); font-size:0.95rem;">Live Preview</strong>
-                        <select id="camPreviewSelect" class="cam-preview-select" aria-label="Select preview camera">
-                            <% loop $Cameras %>
-                                <option value="$ID" data-location-id="$LocationID">$Title ($IPAddress)</option>
-                            <% end_loop %>
-                        </select>
+            <div class="cam-workspace">
+                <div class="cam-preview-card" id="camPreviewCard">
+                    <div class="cam-preview-header">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <strong style="color:var(--cam-accent, #38bdf8); font-size:0.95rem;">Live Preview</strong>
+                            <select id="camPreviewSelect" class="cam-preview-select" aria-label="Select preview camera">
+                                <% loop $Cameras %>
+                                    <option value="$ID" data-location-id="$LocationID">$Title ($IPAddress)</option>
+                                <% end_loop %>
+                            </select>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button type="button" id="btnCamPreviewToggle" class="nav-pill" style="padding:5px 11px; font-size:0.78rem;">Pause</button>
+                            <button type="button" id="btnCamPreviewRefresh" class="nav-pill" style="padding:5px 11px; font-size:0.78rem;">Refresh</button>
+                        </div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <button type="button" id="btnCamPreviewToggle" class="nav-pill" style="padding:6px 12px; font-size:0.8rem;">Pause</button>
-                        <button type="button" id="btnCamPreviewRefresh" class="nav-pill" style="padding:6px 12px; font-size:0.8rem;">Refresh</button>
+                    <div class="cam-preview-stage">
+                        <img id="camPreviewImg" alt="Live camera preview">
+                        <div class="cam-preview-badge">
+                            <span class="cam-preview-dot" id="camPreviewDot"></span>
+                            <span id="camPreviewLabel">Connecting…</span>
+                        </div>
+                        <div class="cam-preview-msg" id="camPreviewMsg">Loading camera preview…</div>
                     </div>
                 </div>
-                <div class="cam-preview-stage">
-                    <img id="camPreviewImg" alt="Live camera preview">
-                    <div class="cam-preview-badge">
-                        <span class="cam-preview-dot" id="camPreviewDot"></span>
-                        <span id="camPreviewLabel">Connecting…</span>
-                    </div>
-                    <div class="cam-preview-msg" id="camPreviewMsg">Loading camera preview…</div>
+
+                <div class="camera-grid">
+                    <% loop $Cameras %>
+                        <div class="cam-card" data-device-id="$ID" data-location-id="$LocationID">
+                            <h3 style="color:var(--cam-accent); margin-top:0;">$Title</h3>
+
+                            <div class="d-pad">
+                                <div class="ptz-btn up" data-dir="up">&#8593;</div>
+                                <div class="ptz-btn left" data-dir="left">&#8592;</div>
+                                <div class="ptz-btn home" data-dir="stop">STOP</div>
+                                <div class="ptz-btn right" data-dir="right">&#8594;</div>
+                                <div class="ptz-btn down" data-dir="down">&#8595;</div>
+                            </div>
+
+                            <div class="zoom-controls">
+                                <button class="zoom-btn" data-zoom="wide">Zoom Out</button>
+                                <button class="zoom-btn" data-zoom="tele">Zoom In</button>
+                            </div>
+
+                            <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center;">
+                                <h4 style="margin:0;">Presets</h4>
+                                <label style="font-size:0.8rem; display:flex; align-items:center; gap:6px;">
+                                    <input type="checkbox" class="save-mode-toggle"> Enable Save Mode
+                                </label>
+                            </div>
+                            <div class="preset-grid">
+                                <div class="preset-btn" data-preset="1">Pos 1</div>
+                                <div class="preset-btn" data-preset="2">Pos 2</div>
+                                <div class="preset-btn" data-preset="3">Pos 3</div>
+                                <div class="preset-btn" data-preset="4">Pos 4</div>
+                                <div class="preset-btn" data-preset="5">Pos 5</div>
+                                <div class="preset-btn" data-preset="6">Pos 6</div>
+                            </div>
+                        </div>
+                    <% end_loop %>
                 </div>
-            </div>
-
-            <div class="camera-grid">
-                <% loop $Cameras %>
-                    <div class="cam-card" data-device-id="$ID" data-location-id="$LocationID">
-                        <h3 style="color:var(--cam-accent); margin-top:0;">$Title</h3>
-
-                        <div class="d-pad">
-                            <div class="ptz-btn up" data-dir="up">&#8593;</div>
-                            <div class="ptz-btn left" data-dir="left">&#8592;</div>
-                            <div class="ptz-btn home" data-dir="stop">STOP</div>
-                            <div class="ptz-btn right" data-dir="right">&#8594;</div>
-                            <div class="ptz-btn down" data-dir="down">&#8595;</div>
-                        </div>
-
-                        <div class="zoom-controls">
-                            <button class="zoom-btn" data-zoom="wide">Zoom Out</button>
-                            <button class="zoom-btn" data-zoom="tele">Zoom In</button>
-                        </div>
-
-                        <div style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="margin:0;">Presets</h4>
-                            <label style="font-size:0.8rem; display:flex; align-items:center; gap:6px;">
-                                <input type="checkbox" class="save-mode-toggle"> Enable Save Mode
-                            </label>
-                        </div>
-                        <div class="preset-grid">
-                            <div class="preset-btn" data-preset="1">Pos 1</div>
-                            <div class="preset-btn" data-preset="2">Pos 2</div>
-                            <div class="preset-btn" data-preset="3">Pos 3</div>
-                            <div class="preset-btn" data-preset="4">Pos 4</div>
-                            <div class="preset-btn" data-preset="5">Pos 5</div>
-                            <div class="preset-btn" data-preset="6">Pos 6</div>
-                        </div>
-                    </div>
-                <% end_loop %>
             </div>
         <% else %>
             <div class="cam-card" style="text-align:center; padding:24px;">
