@@ -11,30 +11,64 @@ class PtzOpticsDiscoveryService
     use Injectable;
 
     /**
-     * Cross-subnet discovery for PTZOptics Move SE / G2 / G3 cameras using:
-     *  1. WS-Discovery / ONVIF Multicast (239.255.255.250:3702) - works across subnets on same L2 network
-     *  2. mDNS Multicast (224.0.0.251:5353) - catches .local / NDI / HTTP advertisements across subnets
-     *  3. Optional CIDR / IP HTTP CGI probe (e.g. 192.168.100.0/24 or 192.168.100.4)
+     * Cross-subnet discovery for PTZOptics, AIDA Imaging, and OBSBOT cameras using:
+     *  1. WS-Discovery / ONVIF Multicast (239.255.255.250:3702)
+     *  2. mDNS Multicast (224.0.0.251:5353)
+     *  3. Unicast / CIDR HTTP CGI & VISCA-over-IP UDP (1259 / 52381) probes with temporary subnet alias
      */
     public function scan(string $subnetOrIp = '', int $timeoutMs = 1300): array
     {
         $foundByIp = [];
 
-        // 1. WS-Discovery ONVIF Probe (cross-subnet Layer-2 multicast)
+        // 1. WS-Discovery ONVIF Probe
         foreach ($this->probeWsDiscovery($timeoutMs) as $ip => $info) {
             $foundByIp[$ip] = array_merge($foundByIp[$ip] ?? [], $info);
         }
 
-        // 2. mDNS Multicast Probe (cross-subnet Layer-2 multicast)
+        // 2. mDNS Multicast Probe
         foreach ($this->probeMdns((int) max(600, $timeoutMs * 0.7)) as $ip => $info) {
             $foundByIp[$ip] = array_merge($foundByIp[$ip] ?? [], $info);
         }
 
-        // 3. Optional Unicast / CIDR HTTP CGI & VISCA check
-        $targets = $this->expandTargets($subnetOrIp);
-        if (!empty($targets) && count($targets) <= 256) {
-            foreach ($this->probeHttpCgi($targets) as $ip => $info) {
-                $foundByIp[$ip] = array_merge($foundByIp[$ip] ?? [], $info);
+        // 3. Unicast / CIDR HTTP CGI & VISCA-over-IP check (local /24 + 192.168.100.0/24 fallback)
+        $localIp = trim((string) @shell_exec("ip -o -4 addr show scope global 2>/dev/null | awk '{split(\$4,a,\"/\"); print a[1]; exit}'"));
+        $localCidr = filter_var($localIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+            ? preg_replace('/\.\d+$/', '.0/24', $localIp)
+            : '';
+        $subnetsToScan = $subnetOrIp !== ''
+            ? [$subnetOrIp]
+            : array_values(array_unique(array_filter([$localCidr, '192.168.100.0/24'])));
+
+        foreach ($subnetsToScan as $cidr) {
+            $targets = $this->expandTargets($cidr);
+            if (empty($targets) || count($targets) > 256) {
+                continue;
+            }
+            $probeIp = $targets[0];
+            $scanCleanup = null;
+            if (!$this->isSame24Subnet($probeIp)) {
+                [$aliasIp, $iface] = $this->attachTemporarySubnetAlias($probeIp);
+                if ($aliasIp && $iface) {
+                    $scanCleanup = sprintf(
+                        'sudo -n ip addr del %s/24 dev %s 2>/dev/null || true',
+                        escapeshellarg($aliasIp),
+                        escapeshellarg($iface)
+                    );
+                }
+            }
+            try {
+                foreach ($this->probeHttpCgi($targets) as $ip => $info) {
+                    $foundByIp[$ip] = array_merge($foundByIp[$ip] ?? [], $info);
+                }
+                foreach ($this->probeViscaUdp($targets, 52381) as $ip => $info) {
+                    if (!isset($foundByIp[$ip])) {
+                        $foundByIp[$ip] = $info;
+                    }
+                }
+            } finally {
+                if ($scanCleanup) {
+                    @shell_exec($scanCleanup);
+                }
             }
         }
 
@@ -53,7 +87,7 @@ class PtzOpticsDiscoveryService
                 continue;
             }
             $model = $info['model'] ?? 'PTZOptics Move SE';
-            $hostname = $info['hostname'] ?? ('PTZOptics-' . str_replace('.', '-', $ip));
+            $hostname = $info['hostname'] ?? ('PTZ Camera (' . $ip . ')');
             $existing = $existingByIp[$ip] ?? null;
 
             $results[] = [
@@ -74,8 +108,7 @@ class PtzOpticsDiscoveryService
     }
 
     /**
-     * Reassigns a PTZOptics camera's network configuration even when it sits on a foreign subnet
-     * (e.g., camera at 192.168.100.4 while host is 192.168.1.x).
+     * Reassigns a camera's network configuration even when it sits on a foreign subnet.
      */
     public function updateCameraNetwork(
         string $currentIp,
@@ -101,24 +134,24 @@ class PtzOpticsDiscoveryService
         $routeAdded = false;
 
         try {
-            // If running on Linux (e.g. Raspberry Pi host-network Docker) and camera is on another subnet,
-            // temporarily add an alias IP on the camera's /24 so direct TCP HTTP CGI & ONVIF requests succeed.
             if (!$this->isSame24Subnet($currentIp)) {
                 [$aliasIp, $iface] = $this->attachTemporarySubnetAlias($currentIp);
                 if ($aliasIp && $iface) {
                     $routeAdded = true;
-                    $cleanupCmd = sprintf('ip addr del %s/24 dev %s 2>/dev/null || true', escapeshellarg($aliasIp), escapeshellarg($iface));
+                    $cleanupCmd = sprintf(
+                        'sudo -n ip addr del %s/24 dev %s 2>/dev/null || true',
+                        escapeshellarg($aliasIp),
+                        escapeshellarg($iface)
+                    );
                 }
             }
 
             $appliedVia = [];
 
-            // Method A: PTZOptics Move SE / G2 HTTP CGI network endpoints
             if ($this->pushPtzOpticsHttpNetwork($currentIp, $newIp, $netmask, $gateway, $dhcp, $username, $password)) {
-                $appliedVia[] = 'PTZOptics HTTP CGI';
+                $appliedVia[] = 'PTZOptics / AIDA HTTP CGI';
             }
 
-            // Method B: ONVIF Device Management SetNetworkInterfaces SOAP call
             if ($this->pushOnvifSetNetworkInterfaces($currentIp, $newIp, $netmask, $gateway, $dhcp, $username, $password)) {
                 $appliedVia[] = 'ONVIF SetNetworkInterfaces';
             }
@@ -130,7 +163,6 @@ class PtzOpticsDiscoveryService
                 throw new RuntimeException($hint);
             }
 
-            // Update any matching ViscaCamera record in SilverStripe DB automatically
             $updatedDb = 0;
             if (!$dhcp && $newIp !== $currentIp) {
                 foreach (ViscaCamera::get()->filter('IPAddress', $currentIp) as $cam) {
@@ -141,11 +173,11 @@ class PtzOpticsDiscoveryService
             }
 
             return [
-                'success'    => true,
-                'oldIp'      => $currentIp,
-                'newIp'      => $dhcp ? 'DHCP' : $newIp,
-                'methods'    => $appliedVia,
-                'updatedDb'  => $updatedDb,
+                'success'   => true,
+                'oldIp'     => $currentIp,
+                'newIp'     => $dhcp ? 'DHCP' : $newIp,
+                'methods'   => $appliedVia,
+                'updatedDb' => $updatedDb,
             ];
         } finally {
             if ($cleanupCmd) {
@@ -189,7 +221,6 @@ class PtzOpticsDiscoveryService
             . '<e:Body><d:Probe><d:Types>dn:NetworkVideoTransmitter</d:Types></d:Probe></e:Body>'
             . '</e:Envelope>';
 
-        // Send twice for reliability across switches
         @socket_sendto($sock, $probeXml, strlen($probeXml), 0, '239.255.255.250', 3702);
         usleep(40_000);
         @socket_sendto($sock, $probeXml, strlen($probeXml), 0, '239.255.255.250', 3702);
@@ -210,7 +241,6 @@ class PtzOpticsDiscoveryService
             $fromIp = '';
             $fromPort = 0;
             while (@socket_recvfrom($sock, $buf, 8192, 0, $fromIp, $fromPort) !== false) {
-                // Extract XAddrs IP (crucial because cross-subnet cameras advertise their configured IP inside XAddrs!)
                 $deviceIp = $fromIp;
                 if (preg_match('/<[^:>]*:?XAddrs[^>]*>([^<]+)</i', $buf, $xm)) {
                     if (preg_match('/https?:\/\/(\d+\.\d+\.\d+\.\d+)/i', $xm[1], $ipm)) {
@@ -221,13 +251,18 @@ class PtzOpticsDiscoveryService
                     continue;
                 }
 
+                $isObsbot = (stripos($buf, 'obsbot') !== false || stripos($buf, 'remo') !== false);
+                $isAida = (stripos($buf, 'aida') !== false);
                 $isPtzOptics = (stripos($buf, 'ptzoptics') !== false || stripos($buf, 'move') !== false || stripos($buf, 'visca') !== false);
-                $model = 'PTZOptics Move SE';
+
+                $model = $isObsbot
+                    ? 'OBSBOT PTZ Camera'
+                    : ($isAida ? 'AIDA PTZ Camera' : 'PTZOptics Move SE');
                 if (preg_match('/hardware\/([^\s<]+)/i', $buf, $hm)) {
                     $model = urldecode($hm[1]);
                 } elseif (preg_match('/name\/([^\s<]+)/i', $buf, $nm)) {
                     $model = urldecode($nm[1]);
-                } elseif (!$isPtzOptics) {
+                } elseif (!$isObsbot && !$isAida && !$isPtzOptics) {
                     $model = 'ONVIF PTZ Camera';
                 }
 
@@ -238,7 +273,7 @@ class PtzOpticsDiscoveryService
 
                 $found[$deviceIp] = [
                     'ip'       => $deviceIp,
-                    'port'     => 1259,
+                    'port'     => ($isObsbot || $isAida) ? 52381 : 1259,
                     'mac'      => $mac,
                     'model'    => $model,
                     'hostname' => $model . ' (' . $deviceIp . ')',
@@ -263,7 +298,6 @@ class PtzOpticsDiscoveryService
         @socket_bind($sock, '0.0.0.0', 0);
         socket_set_nonblock($sock);
 
-        // Build DNS PTR query for _http._tcp.local and _ndi._tcp.local
         $packet = $this->buildMdnsPtrQuery(['_http._tcp.local', '_ndi._tcp.local']);
         @socket_sendto($sock, $packet, strlen($packet), 0, '224.0.0.251', 5353);
 
@@ -283,17 +317,20 @@ class PtzOpticsDiscoveryService
             $fromIp = '';
             $fromPort = 0;
             while (@socket_recvfrom($sock, $buf, 4096, 0, $fromIp, $fromPort) !== false) {
-                if (stripos($buf, 'ptzoptics') === false && stripos($buf, 'move') === false) {
+                $isObsbot = (stripos($buf, 'obsbot') !== false);
+                $isAida = (stripos($buf, 'aida') !== false);
+                if (!$isObsbot && !$isAida && stripos($buf, 'ptzoptics') === false && stripos($buf, 'move') === false) {
                     continue;
                 }
                 if (!filter_var($fromIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
                     continue;
                 }
+                $brand = $isObsbot ? 'OBSBOT' : ($isAida ? 'AIDA' : 'PTZOptics');
                 $found[$fromIp] = [
                     'ip'       => $fromIp,
-                    'port'     => 1259,
-                    'model'    => 'PTZOptics Move SE',
-                    'hostname' => 'PTZOptics (' . $fromIp . ')',
+                    'port'     => ($isObsbot || $isAida) ? 52381 : 1259,
+                    'model'    => $isObsbot ? 'OBSBOT PTZ Camera' : ($isAida ? 'AIDA PTZ Camera' : 'PTZOptics Move SE'),
+                    'hostname' => $brand . ' (' . $fromIp . ')',
                     'source'   => 'mDNS Multicast',
                 ];
             }
@@ -311,18 +348,19 @@ class PtzOpticsDiscoveryService
             foreach (explode('.', $name) as $label) {
                 $body .= chr(strlen($label)) . $label;
             }
-            $body .= "\x00" . pack('nn', 12, 1); // TYPE PTR (12), CLASS IN (1)
+            $body .= "\x00" . pack('nn', 12, 1);
         }
         return $header . $body;
     }
 
     private function probeHttpCgi(array $ips): array
     {
+        $localIps = preg_split('/\s+/', trim((string) @shell_exec('hostname -I 2>/dev/null'))) ?: [];
         $found = [];
         $sockets = [];
 
         foreach ($ips as $ip) {
-            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || in_array($ip, $localIps, true)) {
                 continue;
             }
             $sock = @stream_socket_client("tcp://{$ip}:80", $errno, $errstr, 0.06, STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT);
@@ -342,10 +380,10 @@ class PtzOpticsDiscoveryService
         @stream_select($read, $write, $except, 0, 220_000);
 
         foreach ($write as $ip => $sock) {
-            @fwrite($sock, "GET /cgi-bin/param.cgi?action=get_device_conf HTTP/1.0\r\nHost: {$ip}\r\n\r\n");
+            @fwrite($sock, "GET / HTTP/1.0\r\nHost: {$ip}\r\n\r\n");
         }
 
-        usleep(200_000);
+        usleep(250_000);
 
         foreach ($sockets as $ip => $sock) {
             $data = @fread($sock, 4096);
@@ -353,21 +391,108 @@ class PtzOpticsDiscoveryService
             if (!$data) {
                 continue;
             }
-            if (stripos($data, 'ptzoptics') !== false || stripos($data, 'move') !== false || stripos($data, 'devname') !== false) {
-                $hostname = 'PTZOptics (' . $ip . ')';
-                if (preg_match('/devname\s*=\s*"?([^"\r\n]+)/i', $data, $m)) {
-                    $hostname = trim($m[1]);
+            if (preg_match('/^HTTP\/1\.[01]\s+(200|401)\b/m', $data)
+                && stripos($data, 'enttec') === false
+                && stripos($data, 's-play') === false
+            ) {
+                $isAida = (stripos($data, 'aida') !== false);
+                $isCameraHttp = $isAida
+                    || stripos($data, 'ptzoptics') !== false
+                    || stripos($data, 'move') !== false
+                    || stripos($data, 'camera') !== false
+                    || stripos($data, 'ipcamera') !== false
+                    || stripos($data, 'video') !== false;
+
+                $viscaPort = $isAida ? 52381 : 1259;
+                if (!$isCameraHttp) {
+                    foreach ([52381 => true, 1259 => false] as $testPort => $aidaHint) {
+                        $vs = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+                        if ($vs !== false) {
+                            @socket_set_option($vs, SOL_SOCKET, SO_RCVTIMEO, ['sec' => 0, 'usec' => 120000]);
+                            $pkt = hex2bin('81090400ff');
+                            @socket_sendto($vs, $pkt, strlen($pkt), 0, $ip, $testPort);
+                            $vbuf = '';
+                            $vfrom = '';
+                            $vport = 0;
+                            if (@socket_recvfrom($vs, $vbuf, 32, 0, $vfrom, $vport) !== false && strlen($vbuf) >= 3) {
+                                $isCameraHttp = true;
+                                $isAida = $aidaHint;
+                                $viscaPort = $testPort;
+                                socket_close($vs);
+                                break;
+                            }
+                            socket_close($vs);
+                        }
+                    }
                 }
-                $found[$ip] = [
-                    'ip'       => $ip,
-                    'port'     => 1259,
-                    'model'    => 'PTZOptics Move SE',
-                    'hostname' => $hostname,
-                    'source'   => 'HTTP CGI Probe',
-                ];
+
+                if ($isCameraHttp) {
+                    $brand = $isAida ? 'AIDA' : 'PTZOptics';
+                    $model = $isAida ? 'AIDA PTZ Camera' : 'PTZOptics Move SE';
+                    $hostname = $brand . ' (' . $ip . ')';
+                    if (preg_match('/devname\s*=\s*"?([^"\r\n]+)/i', $data, $m)) {
+                        $hostname = trim($m[1]);
+                    }
+                    $found[$ip] = [
+                        'ip'       => $ip,
+                        'port'     => $viscaPort,
+                        'model'    => $model,
+                        'hostname' => $hostname,
+                        'source'   => 'HTTP / VISCA Probe',
+                    ];
+                }
             }
         }
 
+        return $found;
+    }
+
+    private function probeViscaUdp(array $ips, int $port = 52381): array
+    {
+        $localIps = preg_split('/\s+/', trim((string) @shell_exec('hostname -I 2>/dev/null'))) ?: [];
+        $sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+        if ($sock === false) {
+            return [];
+        }
+        @socket_bind($sock, '0.0.0.0', 0);
+        socket_set_nonblock($sock);
+
+        $rawPkt = hex2bin('81090400ff');
+        $encapPkt = hex2bin('010000050000000181090400ff');
+        foreach ($ips as $ip) {
+            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || in_array($ip, $localIps, true)) {
+                continue;
+            }
+            @socket_sendto($sock, $rawPkt, strlen($rawPkt), 0, $ip, $port);
+            @socket_sendto($sock, $encapPkt, strlen($encapPkt), 0, $ip, $port);
+        }
+
+        $found = [];
+        $deadline = microtime(true) + 0.35;
+        while (microtime(true) < $deadline) {
+            $read = [$sock];
+            $w = null;
+            $e = null;
+            $remUs = (int) max(1000, ($deadline - microtime(true)) * 1_000_000);
+            if (@socket_select($read, $w, $e, 0, $remUs) <= 0) {
+                continue;
+            }
+            $buf = '';
+            $fromIp = '';
+            $fromPort = 0;
+            while (@socket_recvfrom($sock, $buf, 64, 0, $fromIp, $fromPort) !== false) {
+                if (strlen($buf) >= 3 && filter_var($fromIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $found[$fromIp] = [
+                        'ip'       => $fromIp,
+                        'port'     => $port,
+                        'model'    => 'OBSBOT / AIDA PTZ Camera',
+                        'hostname' => 'PTZ Camera (' . $fromIp . ')',
+                        'source'   => 'VISCA-over-IP UDP :' . $port,
+                    ];
+                }
+            }
+        }
+        socket_close($sock);
         return $found;
     }
 
@@ -383,7 +508,6 @@ class PtzOpticsDiscoveryService
         $authHeader = 'Authorization: Basic ' . base64_encode("{$username}:{$password}");
         $dhcpFlag = $dhcp ? '1' : '0';
 
-        // PTZOptics Move SE / G2 CGI endpoints
         $urls = [
             "http://{$currentIp}/cgi-bin/param.cgi?action=set_net_conf&dhcp={$dhcpFlag}&ipaddr={$newIp}&netmask={$netmask}&gateway={$gateway}",
             "http://{$currentIp}/cgi-bin/network.cgi?dhcp={$dhcpFlag}&ip={$newIp}&mask={$netmask}&gateway={$gateway}",
@@ -466,13 +590,13 @@ class PtzOpticsDiscoveryService
     {
         $iface = trim((string) @shell_exec("ip route show default 2>/dev/null | awk '{print \$5; exit}'"));
         if ($iface === '') {
-            return [null, null];
+            $iface = trim((string) @shell_exec("ip -o -4 addr show scope global 2>/dev/null | awk '{print \$2; exit}'")) ?: 'eth0';
         }
         $parts = explode('.', $cameraIp);
         $lastOctet = ((int) $parts[3] === 250) ? 251 : 250;
         $aliasIp = "{$parts[0]}.{$parts[1]}.{$parts[2]}.{$lastOctet}";
 
-        $cmd = sprintf('ip addr add %s/24 dev %s 2>/dev/null', escapeshellarg($aliasIp), escapeshellarg($iface));
+        $cmd = sprintf('sudo -n ip addr add %s/24 dev %s 2>/dev/null', escapeshellarg($aliasIp), escapeshellarg($iface));
         @exec($cmd, $out, $rc);
         if ($rc === 0) {
             usleep(100_000);
