@@ -108,7 +108,8 @@ class PtzOpticsDiscoveryService
     }
 
     /**
-     * Reassigns a camera's network configuration even when it sits on a foreign subnet.
+     * Reassigns a camera's network configuration even when it sits on a foreign subnet,
+     * and triggers an ONVIF SystemReboot if RebootNeeded is returned.
      */
     public function updateCameraNetwork(
         string $currentIp,
@@ -152,13 +153,16 @@ class PtzOpticsDiscoveryService
                 $appliedVia[] = 'PTZOptics / AIDA HTTP CGI';
             }
 
-            if ($this->pushOnvifSetNetworkInterfaces($currentIp, $newIp, $netmask, $gateway, $dhcp, $username, $password)) {
-                $appliedVia[] = 'ONVIF SetNetworkInterfaces';
+            $onvifResult = $this->pushOnvifSetNetworkInterfaces($currentIp, $newIp, $netmask, $gateway, $dhcp, $username, $password);
+            if ($onvifResult['applied']) {
+                $appliedVia[] = $onvifResult['rebooted']
+                    ? 'ONVIF SetNetworkInterfaces + Reboot'
+                    : 'ONVIF SetNetworkInterfaces';
             }
 
             if (empty($appliedVia)) {
                 $hint = $routeAdded
-                    ? "Camera at {$currentIp} was reached on the wire, but rejected credentials or CGI endpoints (check camera admin username/password)."
+                    ? "Camera at {$currentIp} was reached on the wire, but rejected credentials or ONVIF/CGI commands ({$onvifResult['error']})."
                     : "Could not reach {$currentIp} directly from this container. Run this from the Raspberry Pi panel (host network) or verify Ethernet link.";
                 throw new RuntimeException($hint);
             }
@@ -505,32 +509,89 @@ class PtzOpticsDiscoveryService
         string $username,
         string $password
     ): bool {
-        $authHeader = 'Authorization: Basic ' . base64_encode("{$username}:{$password}");
         $dhcpFlag = $dhcp ? '1' : '0';
-
         $urls = [
             "http://{$currentIp}/cgi-bin/param.cgi?action=set_net_conf&dhcp={$dhcpFlag}&ipaddr={$newIp}&netmask={$netmask}&gateway={$gateway}",
             "http://{$currentIp}/cgi-bin/network.cgi?dhcp={$dhcpFlag}&ip={$newIp}&mask={$netmask}&gateway={$gateway}",
         ];
 
-        $ctx = stream_context_create([
-            'http' => [
-                'method'        => 'GET',
-                'header'        => $authHeader . "\r\nConnection: close\r\n",
-                'timeout'       => 2.5,
-                'ignore_errors' => true,
-            ],
-        ]);
-
         foreach ($urls as $url) {
-            $resp = @file_get_contents($url, false, $ctx);
-            $statusLine = $http_response_header[0] ?? '';
-            if (preg_match('/\s200\s/', $statusLine) && $resp !== false && stripos($resp, '404') === false) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPAUTH       => CURLAUTH_ANY,
+                CURLOPT_USERPWD        => "{$username}:{$password}",
+                CURLOPT_TIMEOUT        => 2,
+                CURLOPT_CONNECTTIMEOUT => 1,
+            ]);
+            $resp = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($code === 200 && $resp !== false && stripos((string) $resp, '404') === false) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function buildOnvifSoapEnvelope(string $bodyXml, string $username, string $password): string
+    {
+        $headerXml = '';
+        if ($username !== '') {
+            $nonceRaw = random_bytes(16);
+            $nonceB64 = base64_encode($nonceRaw);
+            $created = gmdate('Y-m-d\TH:i:s\Z');
+            $digest = base64_encode(sha1($nonceRaw . $created . $password, true));
+
+            $headerXml = '<s:Header>'
+                . '<wsse:Security s:mustUnderstand="1" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">'
+                . '<wsse:UsernameToken>'
+                . '<wsse:Username>' . htmlspecialchars($username, ENT_XML1) . '</wsse:Username>'
+                . '<wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">' . $digest . '</wsse:Password>'
+                . '<wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">' . $nonceB64 . '</wsse:Nonce>'
+                . '<wsu:Created>' . $created . '</wsu:Created>'
+                . '</wsse:UsernameToken>'
+                . '</wsse:Security>'
+                . '</s:Header>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"'
+            . ' xmlns:tds="http://www.onvif.org/ver10/device/wsdl"'
+            . ' xmlns:tt="http://www.onvif.org/ver10/schema">'
+            . $headerXml
+            . '<s:Body>' . $bodyXml . '</s:Body>'
+            . '</s:Envelope>';
+    }
+
+    private function sendOnvifSoap(string $ip, string $bodyXml, string $username, string $password): array
+    {
+        $envelope = $this->buildOnvifSoapEnvelope($bodyXml, $username, $password);
+        $ch = curl_init("http://{$ip}/onvif/device_service");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $envelope,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/soap+xml; charset=utf-8'],
+            CURLOPT_HTTPAUTH       => CURLAUTH_ANY,
+            CURLOPT_USERPWD        => "{$username}:{$password}",
+            CURLOPT_TIMEOUT        => 3,
+            CURLOPT_CONNECTTIMEOUT => 2,
+        ]);
+        $resp = (string) curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        $hasFault = ($resp !== '' && preg_match('/<[^:>]*:?Fault\b/i', $resp));
+        return [
+            'ok'       => ($code === 200 && !$hasFault),
+            'code'     => $code,
+            'body'     => $resp,
+            'hasFault' => $hasFault,
+            'error'    => $err,
+        ];
     }
 
     private function pushOnvifSetNetworkInterfaces(
@@ -541,38 +602,59 @@ class PtzOpticsDiscoveryService
         bool $dhcp,
         string $username,
         string $password
-    ): bool {
+    ): array {
+        // 1. Discover exact InterfaceToken (e.g. eth0)
+        $ifaceToken = 'eth0';
+        $getRes = $this->sendOnvifSoap($currentIp, '<tds:GetNetworkInterfaces/>', $username, $password);
+        if ($getRes['ok'] && preg_match('/<[^:>]*:?NetworkInterfaces[^>]*\btoken="([^"]+)"/i', $getRes['body'], $tm)) {
+            $ifaceToken = $tm[1];
+        }
+
+        // 2. Apply IPv4 interface configuration
         $prefixLen = $this->netmaskToPrefix($netmask);
         $dhcpXml = $dhcp ? 'true' : 'false';
-        $manualBlock = $dhcp ? '' : "<tt:Manual><tt:Address>{$newIp}</tt:Address><tt:PrefixLength>{$prefixLen}</tt:PrefixLength></tt:Manual>";
+        $manualBlock = $dhcp
+            ? ''
+            : "<tt:Manual><tt:Address>{$newIp}</tt:Address><tt:PrefixLength>{$prefixLen}</tt:PrefixLength></tt:Manual>";
 
-        $soap = '<?xml version="1.0" encoding="UTF-8"?>'
-            . '<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"'
-            . ' xmlns:tds="http://www.onvif.org/ver10/device/wsdl"'
-            . ' xmlns:tt="http://www.onvif.org/ver10/schema">'
-            . '<s:Body>'
-            . '<tds:SetNetworkInterfaces>'
-            . '<tds:InterfaceToken>eth0</tds:InterfaceToken>'
+        $setBody = '<tds:SetNetworkInterfaces>'
+            . '<tds:InterfaceToken>' . htmlspecialchars($ifaceToken, ENT_XML1) . '</tds:InterfaceToken>'
             . '<tds:NetworkInterface>'
             . '<tt:Enabled>true</tt:Enabled>'
             . '<tt:IPv4><tt:Enabled>true</tt:Enabled>' . $manualBlock . '<tt:DHCP>' . $dhcpXml . '</tt:DHCP></tt:IPv4>'
             . '</tds:NetworkInterface>'
-            . '</tds:SetNetworkInterfaces>'
-            . '</s:Body></s:Envelope>';
+            . '</tds:SetNetworkInterfaces>';
 
-        $ctx = stream_context_create([
-            'http' => [
-                'method'        => 'POST',
-                'header'        => "Content-Type: application/soap+xml; charset=utf-8\r\nAuthorization: Basic " . base64_encode("{$username}:{$password}") . "\r\n",
-                'content'       => $soap,
-                'timeout'       => 2.5,
-                'ignore_errors' => true,
-            ],
-        ]);
+        $setRes = $this->sendOnvifSoap($currentIp, $setBody, $username, $password);
+        if (!$setRes['ok']) {
+            // Retry without WS-Security header in case camera clock drift rejects PasswordDigest
+            $setRes = $this->sendOnvifSoap($currentIp, $setBody, '', '');
+        }
+        if (!$setRes['ok']) {
+            $reason = $setRes['hasFault'] ? 'ONVIF SOAP Fault (check admin password)' : "HTTP {$setRes['code']}";
+            return ['applied' => false, 'rebooted' => false, 'error' => $reason];
+        }
 
-        $resp = @file_get_contents("http://{$currentIp}/onvif/device_service", false, $ctx);
-        $statusLine = $http_response_header[0] ?? '';
-        return (bool) preg_match('/\s200\s/', $statusLine);
+        // 3. Apply Default Gateway if static IP
+        if (!$dhcp && filter_var($gateway, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $gwBody = '<tds:SetNetworkDefaultGateway><tt:IPv4Address>' . $gateway . '</tt:IPv4Address></tds:SetNetworkDefaultGateway>';
+            $gwRes = $this->sendOnvifSoap($currentIp, $gwBody, $username, $password);
+            if (!$gwRes['ok']) {
+                $this->sendOnvifSoap($currentIp, $gwBody, '', '');
+            }
+        }
+
+        // 4. Trigger ONVIF SystemReboot so staged IP change takes effect immediately
+        $rebooted = false;
+        $rebRes = $this->sendOnvifSoap($currentIp, '<tds:SystemReboot/>', $username, $password);
+        if (!$rebRes['ok']) {
+            $rebRes = $this->sendOnvifSoap($currentIp, '<tds:SystemReboot/>', '', '');
+        }
+        if ($rebRes['ok']) {
+            $rebooted = true;
+        }
+
+        return ['applied' => true, 'rebooted' => $rebooted, 'error' => ''];
     }
 
     private function isSame24Subnet(string $targetIp): bool
