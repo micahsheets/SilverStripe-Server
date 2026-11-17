@@ -4,28 +4,41 @@ namespace App\Visca\Controller;
 
 use App\Contract\TouchPanelModuleInterface;
 use App\Model\PanelSettings;
-use App\Visca\Model\ViscaCamera;
+use App\Security\PanelPermissionProvider;
 use App\Security\PanelSecurityGuard;
+use App\Traits\TouchPanelControllerTrait;
+use App\Visca\Model\ViscaCamera;
+use App\Visca\Service\PtzOpticsDiscoveryService;
 use App\Visca\Service\ViscaService;
 use Exception;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
+use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Security\PermissionProvider;
+use Throwable;
 
 class ViscaController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
+    use TouchPanelControllerTrait;
+
     public const PERM_ACCESS = 'PANEL_ACCESS_CAMERA';
 
     private static string $url_segment = 'panel/camera';
 
     private static array $url_handlers = [
-        '' => 'index',
-        'api' => 'api',
+        ''          => 'index',
+        'api'       => 'api',
+        'discover'  => 'discover',
+        'setip'     => 'setip',
+        'import'    => 'import',
     ];
 
     private static array $allowed_actions = [
         'index',
         'api',
+        'discover',
+        'setip',
+        'import',
     ];
 
     public static function getModuleTitle(): string
@@ -52,9 +65,9 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
     {
         return [
             self::PERM_ACCESS => [
-                'name' => 'Access VISCA Camera Control',
+                'name'     => 'Access VISCA Camera Control',
                 'category' => 'AV & Control System',
-                'help' => 'Allows controlling PTZ cameras and recalling/saving presets.',
+                'help'     => 'Allows controlling PTZ cameras and recalling/saving presets.',
             ],
         ];
     }
@@ -82,8 +95,9 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
         $session->save($request);
 
         return $this->customise([
-            'PanelSettings' => PanelSettings::current(),
-            'Cameras' => ViscaCamera::get()->filter('Active', 1),
+            'PanelSettings'      => PanelSettings::current(),
+            'Cameras'            => ViscaCamera::get()->filter('Active', 1),
+            'CanAccessDiscovery' => PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY),
         ])->renderWith([
             'App\\Visca\\Controller\\TouchPanelCamera',
             'Page',
@@ -100,26 +114,27 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
             return $this->httpError(403, 'Forbidden');
         }
 
-        $deviceId = $request->postVar('device_id');
-        $command = $request->postVar('command');
-        $param = $request->postVar('param');
+        $data = $this->parseRequestData($request);
+        $deviceId = $data['device_id'] ?? $request->postVar('device_id');
+        $command = $data['command'] ?? $request->postVar('command');
+        $param = $data['param'] ?? $request->postVar('param');
 
         $camera = ViscaCamera::get()->byID($deviceId);
         if (!$camera) {
             return $this->httpError(404, 'Camera not found');
         }
 
-        $service = new ViscaService($camera->IPAddress, $camera->Port);
+        $service = new ViscaService($camera->IPAddress, (int) ($camera->Port ?: 52381));
         $success = false;
         $errorDetail = '';
 
         try {
             switch ($command) {
                 case 'move':
-                    $success = $service->ptzMove($param);
+                    $success = $service->ptzMove((string) $param);
                     break;
                 case 'zoom':
-                    $success = $service->ptzZoom($param);
+                    $success = $service->ptzZoom((string) $param);
                     break;
                 case 'recall':
                     $success = $service->recallPreset((int) $param);
@@ -136,23 +151,126 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
         }
 
         if (in_array($command, ['save', 'recall'], true)) {
-            $auditArgs = ['Camera_Control',
-                "Camera Preset {$command} on {$camera->Title}",
-                "Cmd: {$command}, Param: {$param}",
-                $success,
-                $errorDetail];
-        $this->extend('onPanelAudit', ...$auditArgs);
+            $this->extend('onPanelAudit', 'Camera_Control', "Camera Preset {$command} on {$camera->Title}", "Cmd: {$command}, Param: {$param}", $success, $errorDetail);
         }
 
-        if (!$success) {
-            return json_encode([
-                'status' => 'error',
-                'message' => $errorDetail,
+        return $this->jsonResponse([
+            'status'  => $success ? 'success' : 'error',
+            'success' => $success,
+            'message' => $errorDetail,
+        ], $success ? 200 : 500);
+    }
+
+    public function discover(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
+        }
+
+        if (!PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Permission denied.'], 403);
+        }
+
+        try {
+            $data = $this->parseRequestData($request);
+            $subnet = trim((string) ($data['subnet'] ?? ''));
+            $cameras = PtzOpticsDiscoveryService::singleton()->scan($subnet);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'cameras' => $cameras,
             ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function setip(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
         }
 
-        return json_encode([
-            'status' => 'success',
-        ]);
+        if (!PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Permission denied.'], 403);
+        }
+
+        try {
+            $data = $this->parseRequestData($request);
+            $currentIp = trim((string) ($data['currentIp'] ?? ''));
+            $newIp = trim((string) ($data['newIp'] ?? ''));
+            $netmask = trim((string) ($data['netmask'] ?? '255.255.255.0')) ?: '255.255.255.0';
+            $gateway = trim((string) ($data['gateway'] ?? ''));
+            $dhcp = filter_var($data['dhcp'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $username = trim((string) ($data['username'] ?? 'admin')) ?: 'admin';
+            $password = (string) ($data['password'] ?? 'admin');
+
+            $result = PtzOpticsDiscoveryService::singleton()->updateCameraNetwork(
+                $currentIp,
+                $newIp,
+                $netmask,
+                $gateway,
+                $dhcp,
+                $username,
+                $password
+            );
+
+            $this->extend('onPanelAudit', 'Camera_Network', "PTZOptics IP updated ({$currentIp} -> {$result['newIp']})", implode(', ', $result['methods']), true, '');
+
+            return $this->jsonResponse($result);
+        } catch (Throwable $e) {
+            $this->extend('onPanelAudit', 'Camera_Network', 'PTZOptics IP update failed', '', false, $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function import(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
+        }
+
+        if (!PanelSecurityGuard::canAccess($request, PanelPermissionProvider::PERM_ACCESS_DISCOVERY)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Permission denied.'], 403);
+        }
+
+        try {
+            $data = $this->parseRequestData($request);
+            $items = $data['cameras'] ?? [];
+            $imported = 0;
+
+            foreach ($items as $item) {
+                $ip = trim((string) ($item['ip'] ?? ''));
+                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    continue;
+                }
+                $cam = ViscaCamera::get()->filter('IPAddress', $ip)->first() ?: ViscaCamera::create();
+                $cam->Title = trim((string) ($item['title'] ?? $item['hostname'] ?? "PTZOptics ({$ip})"));
+                $cam->IPAddress = $ip;
+                $cam->Port = (int) ($item['port'] ?? 52381);
+                if (isset($item['locationId']) && (int) $item['locationId'] > 0) {
+                    $cam->LocationID = (int) $item['locationId'];
+                }
+                $cam->Active = 1;
+                $cam->write();
+                $imported++;
+            }
+
+            return $this->jsonResponse([
+                'success'  => true,
+                'imported' => $imported,
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 }

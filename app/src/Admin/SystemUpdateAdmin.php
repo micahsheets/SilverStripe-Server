@@ -10,15 +10,20 @@ use ZipArchive;
 
 class SystemUpdateAdmin extends LeftAndMain
 {
-    private static $url_segment = 'system-update';
+    private static string $url_segment = 'system-update';
 
-    private static $menu_title = 'System Update';
+    private static string $menu_title = 'System Update';
 
-    private static $menu_icon_class = 'font-icon-upload';
+    private static string $menu_icon_class = 'font-icon-upload';
 
-    private static $menu_priority = -10;
+    private static int $menu_priority = -10;
 
-    private static $allowed_actions = [
+    private static array $url_handlers = [
+        'POST upload' => 'upload',
+        'upload'      => 'upload',
+    ];
+
+    private static array $allowed_actions = [
         'upload',
     ];
 
@@ -29,13 +34,18 @@ class SystemUpdateAdmin extends LeftAndMain
 
     public function upload(HTTPRequest $request): HTTPResponse
     {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required'], 405);
+        }
+
         if (!SecurityToken::inst()->checkRequest($request)) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF security token'], 403);
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF security token — refresh the page and retry'], 403);
         }
 
         $uploaded = $request->postVar('patch');
         if (empty($uploaded['tmp_name']) || !is_uploaded_file($uploaded['tmp_name'])) {
-            return $this->jsonResponse(['success' => false, 'error' => 'No valid .zip patch uploaded'], 400);
+            $errCode = $uploaded['error'] ?? 'none';
+            return $this->jsonResponse(['success' => false, 'error' => "No valid .zip patch uploaded (PHP upload error code: {$errCode})"], 400);
         }
 
         $zip = new ZipArchive();
@@ -70,7 +80,7 @@ class SystemUpdateAdmin extends LeftAndMain
         $zip->close();
 
         if (!$extractOk) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Failed to extract files (check www-data ownership)'], 500);
+            return $this->jsonResponse(['success' => false, 'error' => 'Failed to extract files (check www-data ownership on project directory)'], 500);
         }
 
         @unlink(BASE_PATH . '/manifest.json');
@@ -84,9 +94,9 @@ class SystemUpdateAdmin extends LeftAndMain
         exec($cmd, $output, $exitCode);
 
         return $this->jsonResponse([
-            'success' => $exitCode === 0,
-            'version' => $manifest['version'] ?? 'unknown',
-            'modules' => $manifest['modules'] ?? [],
+            'success'     => $exitCode === 0,
+            'version'     => $manifest['version'] ?? 'unknown',
+            'modules'     => $manifest['modules'] ?? [],
             'buildOutput' => implode("\n", $output),
         ], $exitCode === 0 ? 200 : 500);
     }
