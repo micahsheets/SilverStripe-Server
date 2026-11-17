@@ -151,7 +151,8 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
         }
 
         if (in_array($command, ['save', 'recall'], true)) {
-            $this->extend('onPanelAudit', 'Camera_Control', "Camera Preset {$command} on {$camera->Title}", "Cmd: {$command}, Param: {$param}", $success, $errorDetail);
+            $aCat = 'Camera_Control'; $aTitle = "Camera Preset {$command} on {$camera->Title}"; $aDet = "Cmd: {$command}, Param: {$param}";
+            $this->extend('onPanelAudit', $aCat, $aTitle, $aDet, $success, $errorDetail);
         }
 
         return $this->jsonResponse([
@@ -218,11 +219,13 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
                 $password
             );
 
-            $this->extend('onPanelAudit', 'Camera_Network', "PTZOptics IP updated ({$currentIp} -> {$result['newIp']})", implode(', ', $result['methods']), true, '');
+            $aCat = 'Camera_Network'; $aTitle = "PTZOptics IP updated ({$currentIp} -> {$result['newIp']})"; $aDet = implode(', ', $result['methods']); $aOk = true; $aErr = '';
+            $this->extend('onPanelAudit', $aCat, $aTitle, $aDet, $aOk, $aErr);
 
             return $this->jsonResponse($result);
         } catch (Throwable $e) {
-            $this->extend('onPanelAudit', 'Camera_Network', 'PTZOptics IP update failed', '', false, $e->getMessage());
+            $aCat = 'Camera_Network'; $aTitle = 'PTZOptics IP update failed'; $aDet = ''; $aOk = false; $aErr = $e->getMessage();
+            $this->extend('onPanelAudit', $aCat, $aTitle, $aDet, $aOk, $aErr);
             return $this->jsonResponse([
                 'success' => false,
                 'error'   => $e->getMessage(),
