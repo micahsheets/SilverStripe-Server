@@ -7,14 +7,39 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>Auctioneer Mic Kiosk<% end_if %></title>
     <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+<% if $PanelSettings.PanelBackground %>
+<style>
+    html body {
+        background-image:
+            linear-gradient(rgba(15, 23, 42, 0.{$PanelSettings.BackgroundOverlayOpacity}), rgba(15, 23, 42, 0.{$PanelSettings.BackgroundOverlayOpacity})),
+            url('$PanelSettings.PanelBackground.ScaleWidth(1920).URL') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-attachment: fixed !important;
+    }
+    html body[data-theme="light"] {
+        background-image:
+            linear-gradient(rgba(248, 250, 252, 0.{$PanelSettings.BackgroundOverlayOpacity}), rgba(248, 250, 252, 0.{$PanelSettings.BackgroundOverlayOpacity})),
+            url('$PanelSettings.PanelBackground.ScaleWidth(1920).URL') !important;
+    }
+    html body .panel-backdrop,
+    html body[data-theme="light"] .panel-backdrop {
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+</style>
+<% end_if %>
     <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
     <style>
         html, body { height: 100%; margin: 0; overflow-x: hidden; }
         .auc-shell { min-height: 100vh; display: flex; flex-direction: column; padding: 10px 12px; box-sizing: border-box; gap: 10px; }
         .auc-topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 14px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(148, 163, 184, 0.25); }
         body[data-theme="light"] .auc-topbar { background: rgba(255, 255, 255, 0.88); }
-        .auc-station-badge { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em; }
-        .auc-station-sub { font-size: 0.75rem; opacity: 0.75; }
+        .auc-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .auc-brand img { max-height: 32px; width: auto; object-fit: contain; flex-shrink: 0; }
+        .auc-station-badge { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .auc-station-sub { font-size: 0.75rem; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .auc-btn { border: 1px solid rgba(148, 163, 184, 0.35); background: rgba(30, 41, 59, 0.75); color: inherit; border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 0.92rem; cursor: pointer; touch-action: manipulation; }
         body[data-theme="light"] .auc-btn { background: #f1f5f9; }
         .auc-btn.primary { background: #2563eb; border-color: #3b82f6; color: #fff; }
@@ -59,11 +84,16 @@
 <div class="panel-backdrop auc-shell">
 
     <header class="auc-topbar">
-        <div>
-            <div class="auc-station-badge" id="aucStationTitle">Select Lane &amp; Panel</div>
-            <div class="auc-station-sub" id="aucStationSub">DTX Microphone Channel</div>
+        <div class="auc-brand">
+            <% if $PanelSettings.PanelLogo.exists %>
+                <img src="$PanelSettings.PanelLogo.ScaleHeight(32).URL" alt="Logo">
+            <% end_if %>
+            <div style="min-width:0;">
+                <div class="auc-station-badge" id="aucStationTitle">Select Lane &amp; Panel</div>
+                <div class="auc-station-sub" id="aucStationSub"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle · <% end_if %>DTX Microphone Channel</div>
+            </div>
         </div>
-        <div style="display:flex; gap:6px; align-items:center;">
+        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
             <button type="button" class="auc-btn" onclick="openStationModal()">Lane / Mic</button>
             <button type="button" class="auc-btn" onclick="openAddAuctioneerModal()">+ User</button>
         </div>
@@ -151,7 +181,6 @@
 
 </div>
 
-<!-- PIN Keypad Modal -->
 <div class="auc-modal" id="aucPinModal">
     <div class="auc-pin-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -176,7 +205,6 @@
     </div>
 </div>
 
-<!-- Authorized Save Target Modal (Choose Any User & Any Lane / Mic) -->
 <div class="auc-modal" id="aucSaveTargetModal">
     <div class="auc-pin-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -197,7 +225,6 @@
     </div>
 </div>
 
-<!-- Lane / Touch Panel Station Picker Modal -->
 <div class="auc-modal" id="aucStationModal">
     <div class="auc-pin-card" style="width:min(460px, 100%); max-height:85vh; overflow:auto;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -208,7 +235,6 @@
     </div>
 </div>
 
-<!-- Quick Add Auctioneer Modal -->
 <div class="auc-modal" id="aucNewUserModal">
     <div class="auc-pin-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
