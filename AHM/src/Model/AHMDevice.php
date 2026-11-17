@@ -12,7 +12,6 @@ use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\Tab;
 use SilverStripe\Forms\TabSet;
-use SilverStripe\Forms\TextareaField;
 use SilverStripe\Forms\TextField;
 use SilverStripe\ORM\DataObject;
 
@@ -73,6 +72,7 @@ class AHMDevice extends DataObject
         $selectedInputs = $this->mapByKey($this->parseNumberedList((string) $this->InputsConfig, $max), 'num');
         $selectedGroups = $this->mapByKey($this->parseNumberedList((string) $this->GroupsConfig, 32), 'num');
         $selectedSends = $this->mapByKey($this->parseSendsList((string) $this->SendsConfig, $max), 'key');
+        $selectedPresets = $this->mapByKey($this->parseNumberedList((string) $this->PresetsConfig, 500), 'num');
 
         $zonesCatalog = $catalog['zones'] ?? array_map(fn($n) => [
             'num' => $n, 'label' => $selectedZones[$n]['label'] ?? "Zone {$n}", 'db' => null, 'muted' => false,
@@ -84,7 +84,11 @@ class AHMDevice extends DataObject
 
         $groupsCatalog = $catalog['groups'] ?? array_map(fn($n) => [
             'num' => $n, 'label' => $selectedGroups[$n]['label'] ?? "Control Group {$n}", 'db' => null, 'muted' => false,
-        ], range(1, 16));
+        ], range(1, 32));
+
+        $presetsCatalog = $catalog['presets'] ?? array_map(fn($n) => [
+            'num' => $n, 'label' => $selectedPresets[$n]['label'] ?? "Preset {$n}", 'db' => null, 'muted' => false,
+        ], range(1, 500));
 
         $sendsCatalog = $catalog['sends'] ?? [];
         foreach ($selectedSends as $k => $sItem) {
@@ -99,9 +103,10 @@ class AHMDevice extends DataObject
         $pickerPayload = htmlspecialchars(json_encode([
             'deviceId' => (int) $this->ID, 'fetchedAt' => $catalog['fetchedAt'] ?? '',
             'zones' => $zonesCatalog, 'inputs' => $inputsCatalog,
-            'groups' => $groupsCatalog, 'sends' => $sendsCatalog,
+            'groups' => $groupsCatalog, 'sends' => $sendsCatalog, 'presets' => $presetsCatalog,
             'selectedZones' => $selectedZones, 'selectedInputs' => $selectedInputs,
             'selectedGroups' => $selectedGroups, 'selectedSends' => $selectedSends,
+            'selectedPresets' => $selectedPresets,
         ]), ENT_QUOTES, 'UTF-8');
 
         $pickerHtml = $this->buildPickerHtml($pickerPayload);
@@ -127,7 +132,7 @@ class AHMDevice extends DataObject
                 Tab::create(
                     'Channels & Zones',
                     LiteralField::create('AHMChannelPicker', $pickerHtml),
-                    TextareaField::create('PresetsConfig', 'Presets (one per line: Number:Label)')->setRows(5),
+                    HiddenField::create('PresetsConfig'),
                     HiddenField::create('ZonesConfig'),
                     HiddenField::create('InputsConfig'),
                     HiddenField::create('GroupsConfig'),
@@ -143,8 +148,8 @@ class AHMDevice extends DataObject
 <div id="ahm-cms-picker" data-config="{$pickerPayload}" style="border:1px solid #cbd5e1; border-radius:8px; padding:14px; background:#f8fafc; margin-bottom:14px;">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
         <div>
-            <strong style="font-size:14px; color:#0f172a;">Live AHM Channel &amp; Crosspoint Selector</strong>
-            <div id="ahm-sync-meta" style="font-size:12px; color:#475569;">Save the processor IP first, then click Sync to pull live Input, Zone, Group &amp; Crosspoint levels from the AHM.</div>
+            <strong style="font-size:14px; color:#0f172a;">Live AHM Channel, Crosspoint &amp; Preset Selector</strong>
+            <div id="ahm-sync-meta" style="font-size:12px; color:#475569;">Check the Zones, Inputs, Groups, Crosspoints, and Presets (1–500) to display on the touch panel, then click Save.</div>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <label style="font-size:12px; display:flex; align-items:center; gap:4px; color:#334155;">

@@ -13,7 +13,7 @@
         const allXpointsCb = document.getElementById('ahm-include-all-xpoints');
 
         if (cfg.fetchedAt && metaEl) {
-            metaEl.textContent = 'Last synced from AHM hardware: ' + cfg.fetchedAt + ' — check the channels you want on the touch panel and click Save.';
+            metaEl.textContent = 'Last synced from AHM hardware: ' + cfg.fetchedAt + ' — check the channels & presets you want on the touch panel and click Save.';
         }
 
         const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -40,13 +40,14 @@
                     hidden.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             };
+            writeList('.ahm-row-preset', 'PresetsConfig');
             writeList('.ahm-row-zone', 'ZonesConfig');
             writeList('.ahm-row-input', 'InputsConfig');
             writeList('.ahm-row-group', 'GroupsConfig');
             writeList('.ahm-row-send', 'SendsConfig');
         }
 
-        function renderGroup(title, items, selectedMap, rowClass, keyField) {
+        function renderGroup(title, items, selectedMap, rowClass, keyField, withSearch = false) {
             if (!items || items.length === 0) {
                 return `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:10px;">
                     <strong style="font-size:13px; color:#0f172a;">${esc(title)}</strong>
@@ -66,10 +67,15 @@
                 </div>`;
             }).join('');
 
+            const searchHtml = withSearch
+                ? `<input type="search" data-filter-row="${rowClass}" placeholder="Filter # or name…" style="padding:2px 8px; border:1px solid #cbd5e1; border-radius:4px; font-size:11px; width:150px;">`
+                : '';
+
             return `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
                     <strong style="font-size:13px; color:#0f172a;">${esc(title)} (${items.length})</strong>
-                    <div style="display:flex; gap:6px;">
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        ${searchHtml}
                         <button type="button" class="btn btn-outline-secondary btn-sm" data-toggle-all="${rowClass}" data-state="1" style="padding:2px 8px; font-size:11px;">Check All</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" data-toggle-all="${rowClass}" data-state="0" style="padding:2px 8px; font-size:11px;">Uncheck All</button>
                     </div>
@@ -80,6 +86,7 @@
 
         function renderAll() {
             sectionsEl.innerHTML =
+                renderGroup('Presets / Scenes (1–500)', cfg.presets || [], cfg.selectedPresets || {}, 'ahm-row-preset', 'num', true) +
                 renderGroup('Output Zones (Zone Volumes & Mutes)', cfg.zones || [], cfg.selectedZones || {}, 'ahm-row-zone', 'num') +
                 renderGroup('Input Channels (Input Volumes & Mutes)', cfg.inputs || [], cfg.selectedInputs || {}, 'ahm-row-input', 'num') +
                 renderGroup('Control Groups / DCAs', cfg.groups || [], cfg.selectedGroups || {}, 'ahm-row-group', 'num') +
@@ -92,8 +99,23 @@
             sectionsEl.querySelectorAll('[data-toggle-all]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const state = btn.dataset.state === '1';
-                    root.querySelectorAll('.' + btn.dataset.toggleAll + ' input[type="checkbox"]').forEach(cb => { cb.checked = state; });
+                    root.querySelectorAll('.' + btn.dataset.toggleAll).forEach(row => {
+                        if (row.style.display !== 'none') {
+                            const cb = row.querySelector('input[type="checkbox"]');
+                            if (cb) cb.checked = state;
+                        }
+                    });
                     syncToHiddenFields();
+                });
+            });
+            sectionsEl.querySelectorAll('[data-filter-row]').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.trim().toLowerCase();
+                    root.querySelectorAll('.' + inp.dataset.filterRow).forEach(row => {
+                        const key = (row.dataset.key || '').toLowerCase();
+                        const lbl = (row.querySelector('input[type="text"]')?.value || '').toLowerCase();
+                        row.style.display = (!q || key.includes(q) || lbl.includes(q)) ? 'flex' : 'none';
+                    });
                 });
             });
         }
