@@ -50,6 +50,14 @@
         .ahm-mute-btn { flex:0 0 88px; width:88px; height:48px; border-radius:14px; border:2px solid rgba(148,163,184,0.45); background:rgba(30,41,59,0.85); color:inherit; font-size:1.05rem; font-weight:800; letter-spacing:0.03em; cursor:pointer; }
         .ahm-mute-btn.is-muted { background:#dc2626; border-color:#ef4444; color:#ffffff; box-shadow:0 0 14px rgba(239,68,68,0.45); }
         .ahm-subtabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+        .view-toggle-group { display:inline-flex; border-radius:999px; border:1px solid rgba(148,163,184,0.35); overflow:hidden; background:rgba(15,23,42,0.55); }
+        body[data-theme="light"] .view-toggle-group { background:rgba(255,255,255,0.85); }
+        .view-toggle-btn { border:none; background:transparent; color:inherit; padding:7px 14px; font-size:0.84rem; font-weight:700; cursor:pointer; opacity:0.78; }
+        .view-toggle-btn.active { background:#0ea5e9; color:#ffffff; opacity:1; }
+        #ahmWorkspace.is-list-view .ahm-strips-grid { display:flex; flex-direction:column; gap:8px; }
+        #ahmWorkspace.is-list-view .ahm-strip-card { flex-direction:row; align-items:center; padding:10px 14px; gap:14px; border-radius:12px; }
+        #ahmWorkspace.is-list-view .ahm-strip-top { flex:0 0 230px; align-items:center; }
+        #ahmWorkspace.is-list-view .ahm-fader-row { flex:1; }
     </style>
 </head>
 <body class="audio-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
@@ -81,8 +89,12 @@
         </div>
         <div class="ahm-toolbar">
             <div class="device-tabs" id="ahmDeviceTabs"></div>
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                 <span id="ahmModelBadge" style="font-size:0.8rem; opacity:0.8; font-weight:700;"></span>
+                <div class="view-toggle-group" role="group" aria-label="Layout View">
+                    <button type="button" class="view-toggle-btn active" data-view-mode="grid">Grid</button>
+                    <button type="button" class="view-toggle-btn" data-view-mode="list">List</button>
+                </div>
                 <button type="button" class="nav-pill" id="btnRefreshAhm">Sync Mixer</button>
             </div>
         </div>

@@ -114,7 +114,17 @@ async function recallP300Preset(presetNum, presetName) {
             preset: presetNum
         });
         showP300Toast(dev.title + ': Recalled ' + presetName);
-        await loadP300Status();
+        await 
+function applyP300ViewMode(mode) {
+    const m = (mode === 'list') ? 'list' : 'grid';
+    localStorage.setItem('p300_view_mode', m);
+    document.getElementById('p300Workspace')?.classList.toggle('is-list-view', m === 'list');
+    document.querySelectorAll('[data-view-mode]').forEach(b => b.classList.toggle('active', b.dataset.viewMode === m));
+}
+document.querySelectorAll('[data-view-mode]').forEach(b => b.addEventListener('click', () => applyP300ViewMode(b.dataset.viewMode)));
+applyP300ViewMode(localStorage.getItem('p300_view_mode') || 'grid');
+
+loadP300Status();
     } catch (err) {
         showP300Toast(err.message, true);
     }
@@ -263,6 +273,16 @@ function renderP300() {
 
     workspace.appendChild(cGrid);
 }
+
+
+function applyP300ViewMode(mode) {
+    const m = (mode === 'list') ? 'list' : 'grid';
+    localStorage.setItem('p300_view_mode', m);
+    document.getElementById('p300Workspace')?.classList.toggle('is-list-view', m === 'list');
+    document.querySelectorAll('[data-view-mode]').forEach(b => b.classList.toggle('active', b.dataset.viewMode === m));
+}
+document.querySelectorAll('[data-view-mode]').forEach(b => b.addEventListener('click', () => applyP300ViewMode(b.dataset.viewMode)));
+applyP300ViewMode(localStorage.getItem('p300_view_mode') || 'grid');
 
 loadP300Status();
 setInterval(loadP300Status, 10000);

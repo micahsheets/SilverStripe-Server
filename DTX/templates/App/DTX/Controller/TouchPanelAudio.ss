@@ -28,7 +28,31 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+        <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <style>
+        .view-toggle-group { display:inline-flex; border-radius:999px; border:1px solid rgba(148,163,184,0.35); overflow:hidden; background:rgba(15,23,42,0.55); }
+        body[data-theme="light"] .view-toggle-group { background:rgba(255,255,255,0.85); }
+        .view-toggle-btn { border:none; background:transparent; color:inherit; padding:7px 14px; font-size:0.84rem; font-weight:700; cursor:pointer; opacity:0.78; }
+        .view-toggle-btn.active { background:#0ea5e9; color:#ffffff; opacity:1; }
+        #dsp-container.is-grid-view .audio-controls {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)) !important;
+            gap: 12px !important;
+        }
+        #dsp-container.is-grid-view .control-group {
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 14px;
+            padding: 14px;
+            margin: 0 !important;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        body[data-theme="light"] #dsp-container.is-grid-view .control-group {
+            background: rgba(255, 255, 255, 0.92);
+        }
+    </style>
 </head>
 <body class="audio-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
 <div class="panel-backdrop">
@@ -63,6 +87,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px; flex:0 0 auto;">
             <div id="audio-device-tabs" class="device-tabs"></div>
             <div style="display:flex; gap:8px; align-items:center;">
+                <div class="view-toggle-group" role="group" aria-label="Layout View"><button type="button" class="view-toggle-btn" data-view-mode="grid">Grid</button><button type="button" class="view-toggle-btn active" data-view-mode="list">List</button></div>
                 <button type="button" id="btn-refresh-dtx" class="nav-pill">Refresh Channels</button>
                 <% if $CanAccessDiscovery %>
                     <button type="button" id="btn-discover-dtx" class="nav-pill">Scan Network for DTX</button>

@@ -169,8 +169,38 @@
         document.querySelectorAll('.unified-room-tabs .room-tab').forEach(b => b.classList.toggle('active', b === btn));
         renderWorkspace();
     }));
-    document.getElementById('btnRefreshAhm')?.addEventListener('click', async () => { await loadAhmStatus(true); showToast('Resynced AHM levels, mutes & channel names'); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAhmStatus(true); });
+    document.getElementById('btnRefreshAhm')?.addEventListener('click', async () => { await 
+    function applyAhmViewMode(mode) {
+        const m = (mode === 'list') ? 'list' : 'grid';
+        localStorage.setItem('ahm_view_mode', m);
+        workspaceEl?.classList.toggle('is-list-view', m === 'list');
+        document.querySelectorAll('[data-view-mode]').forEach(b => b.classList.toggle('active', b.dataset.viewMode === m));
+    }
+    document.querySelectorAll('[data-view-mode]').forEach(b => b.addEventListener('click', () => applyAhmViewMode(b.dataset.viewMode)));
+    applyAhmViewMode(localStorage.getItem('ahm_view_mode') || 'grid');
+
+    loadAhmStatus(true); showToast('Resynced AHM levels, mutes & channel names'); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) 
+    function applyAhmViewMode(mode) {
+        const m = (mode === 'list') ? 'list' : 'grid';
+        localStorage.setItem('ahm_view_mode', m);
+        workspaceEl?.classList.toggle('is-list-view', m === 'list');
+        document.querySelectorAll('[data-view-mode]').forEach(b => b.classList.toggle('active', b.dataset.viewMode === m));
+    }
+    document.querySelectorAll('[data-view-mode]').forEach(b => b.addEventListener('click', () => applyAhmViewMode(b.dataset.viewMode)));
+    applyAhmViewMode(localStorage.getItem('ahm_view_mode') || 'grid');
+
+    loadAhmStatus(true); });
+
+    
+    function applyAhmViewMode(mode) {
+        const m = (mode === 'list') ? 'list' : 'grid';
+        localStorage.setItem('ahm_view_mode', m);
+        workspaceEl?.classList.toggle('is-list-view', m === 'list');
+        document.querySelectorAll('[data-view-mode]').forEach(b => b.classList.toggle('active', b.dataset.viewMode === m));
+    }
+    document.querySelectorAll('[data-view-mode]').forEach(b => b.addEventListener('click', () => applyAhmViewMode(b.dataset.viewMode)));
+    applyAhmViewMode(localStorage.getItem('ahm_view_mode') || 'grid');
 
     loadAhmStatus(true);
     setInterval(() => loadAhmStatus(false), 3000);

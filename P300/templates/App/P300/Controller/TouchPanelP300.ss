@@ -103,7 +103,7 @@
         .p300-chan-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
         .p300-chan-num { font-size:0.75rem; opacity:0.7; font-weight:600; }
         .p300-chan-name { font-size:1rem; font-weight:700; }
-        .p300-db-readout { font-family: monospace; font-size: 0.9rem; font-weight: 700; }
+        .p300-db-readout { font-family: monospace; font-size: 0.9rem; font-weight: 700; color: #38bdf8; }
         .p300-slider { width: 100%; accent-color: #38bdf8; height: 48px; cursor: pointer; }
         .slider-mute-row {
             display: flex;
@@ -118,6 +118,14 @@
             border-color: #ef4444;
             color: #fff;
         }
+        .view-toggle-group { display:inline-flex; border-radius:999px; border:1px solid rgba(148,163,184,0.35); overflow:hidden; background:rgba(15,23,42,0.55); }
+        body[data-theme="light"] .view-toggle-group { background:rgba(255,255,255,0.85); }
+        .view-toggle-btn { border:none; background:transparent; color:inherit; padding:7px 14px; font-size:0.84rem; font-weight:700; cursor:pointer; opacity:0.78; }
+        .view-toggle-btn.active { background:#0ea5e9; color:#ffffff; opacity:1; }
+        #p300Workspace.is-list-view .p300-channels-grid { display:flex; flex-direction:column; gap:8px; }
+        #p300Workspace.is-list-view .p300-chan-card { flex-direction:row; align-items:center; padding:10px 14px; gap:14px; border-radius:12px; }
+        #p300Workspace.is-list-view .p300-chan-top { flex:0 0 230px; align-items:center; }
+        #p300Workspace.is-list-view .slider-mute-row { flex:1; }
     </style>
 </head>
 <body class="audio-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
@@ -152,7 +160,13 @@
         </div>
         <div class="p300-device-bar">
             <div class="device-tabs" id="p300DeviceTabs"></div>
-            <button type="button" class="nav-pill" onclick="flashActiveP300()">Locate / Flash LEDs</button>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <div class="view-toggle-group" role="group" aria-label="Layout View">
+                    <button type="button" class="view-toggle-btn active" data-view-mode="grid">Grid</button>
+                    <button type="button" class="view-toggle-btn" data-view-mode="list">List</button>
+                </div>
+                <button type="button" class="nav-pill" onclick="flashActiveP300()">Locate / Flash LEDs</button>
+            </div>
         </div>
 
         <div id="p300Workspace"></div>

@@ -239,4 +239,14 @@
 
     initTabs();
 })();
+
+    function applyDtxViewMode(mode) {
+        const m = (mode === 'grid') ? 'grid' : 'list';
+        localStorage.setItem('dtx_view_mode', m);
+        document.getElementById('dsp-container')?.classList.toggle('is-grid-view', m === 'grid');
+        document.querySelectorAll('[data-view-mode]').forEach(b => b.classList.toggle('active', b.dataset.viewMode === m));
+        window.dispatchEvent(new Event('resize'));
+    }
+    document.querySelectorAll('[data-view-mode]').forEach(b => b.addEventListener('click', () => applyDtxViewMode(b.dataset.viewMode)));
+    applyDtxViewMode(localStorage.getItem('dtx_view_mode') || 'list');
 </script>
