@@ -119,10 +119,10 @@ class AHMDevice extends DataObject
                         'AHM-64' => 'AHM-64 (64x64 Matrix)',
                     ]),
                     TextField::create('IPAddress', 'AHM Network IP Address'),
-                    NumericField::create('Port', 'TCP Control Port (default 51325)'),
-                    NumericField::create('MidiChannel', 'Base MIDI Channel (1-16)'),
+                    NumericField::create('Port', 'TCP Control Port (default 51325)')->setHTML5(true),
+                    NumericField::create('MidiChannel', 'Base MIDI Channel (1-16)')->setHTML5(true),
                     CheckboxField::create('Active', 'Active on Touch Panel'),
-                    NumericField::create('SortOrder', 'Sort Order')
+                    NumericField::create('SortOrder', 'Sort Order')->setHTML5(true)
                 ),
                 Tab::create(
                     'Channels & Zones',
