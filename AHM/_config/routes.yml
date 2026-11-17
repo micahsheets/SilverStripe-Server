@@ -1,0 +1,9 @@
+---
+Name: ahmroutes
+Before:
+  - '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/ahm//$Action/$ID': 'App\AHM\Controller\AHMController'
+    'api/ahm//$Action/$ID': 'App\AHM\Controller\AHMController'

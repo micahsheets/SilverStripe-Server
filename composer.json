@@ -51,7 +51,8 @@
             "App\\Enttec\\": "Enttec/src/",
             "App\\Visca\\": "Visca/src/",
             "App\\RodeCaster\\": "RodeCaster/src/",
-            "App\\P300\\": "P300/src/"
+            "App\\P300\\": "P300/src/",
+            "App\\AHM\\": "AHM/src/"
         }
     }
 }
