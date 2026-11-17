@@ -224,7 +224,8 @@ class DTXController extends Controller implements TouchPanelModuleInterface, Per
                 $dev->Title = trim((string) ($item['title'] ?? $item['hostname'] ?? "DTX ({$ip})"));
                 $dev->IPAddress = $ip;
                 $dev->ControlPort = (int) ($item['controlPort'] ?? 5000);
-                $dev->DeviceModel = ($item['model'] ?? '') === 'DTX-88' ? 'DTX-88' : 'DTX-44';
+                $m = strtoupper(trim((string) ($item['model'] ?? 'DTX-44')));
+                $dev->DeviceModel = in_array($m, ['DTX-44', 'DTX-88', 'DTX-32', 'DTX-64'], true) ? $m : 'DTX-44';
                 $dev->Active = 1;
                 $dev->write();
                 $imported++;

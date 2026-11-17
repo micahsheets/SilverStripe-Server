@@ -37,7 +37,7 @@ class AuctionPanelStation extends DataObject
     private static array $summary_fields = [
         'Lane.Title'             => 'Lane',
         'Title'                  => 'Panel Position',
-        'DTXChannel'             => 'DTX Mic Input (1-4)',
+        'DTXChannel'             => 'DTX Mic Input (1-64)',
         'PanelIPAddress'         => '4" Panel IP (Optional)',
         'ActiveAuctioneer.Title' => 'Logged-In Auctioneer',
         'KioskURL'               => 'Direct Kiosk URL',
@@ -50,16 +50,23 @@ class AuctionPanelStation extends DataObject
 
     public function getCMSFields(): FieldList
     {
+        $maxCh = 64;
+        $lane = $this->Lane();
+        if ($lane && $lane->exists() && $lane->DTXDevice()->exists()) {
+            $maxCh = $lane->DTXDevice()->getChannelCapacity();
+        }
+
+        $channelOptions = [];
+        for ($ch = 1; $ch <= $maxCh; $ch++) {
+            $channelOptions[$ch] = "Mic Input {$ch} (Channel {$ch})";
+        }
+
         return FieldList::create(
             DropdownField::create('LaneID', 'Auction Lane', AuctionLane::get()->map('ID', 'Title'))
                 ->setEmptyString('-- Select Lane --'),
             TextField::create('Title', 'Panel Position Name (e.g. Block Left, Block Right, Pod 3)'),
-            DropdownField::create('DTXChannel', 'DTX Microphone Input Channel (1 - 4)', [
-                1 => 'Mic Input 1 (Channel 1)',
-                2 => 'Mic Input 2 (Channel 2)',
-                3 => 'Mic Input 3 (Channel 3)',
-                4 => 'Mic Input 4 (Channel 4)',
-            ]),
+            DropdownField::create('DTXChannel', "DTX Microphone Input Channel (1 - {$maxCh})", $channelOptions)
+                ->setDescription('Automatically scopes to the assigned DTX unit capacity (4, 8, 32, or 64 channels)'),
             TextField::create('PanelIPAddress', '4" Touch Panel IP (Optional auto-bind)'),
             NumericField::create('SortOrder', 'Sort Order')->setHTML5(true),
             ReadonlyField::create('KioskURLDisplay', 'Direct 4" Touchscreen URL', $this->getKioskURL())
@@ -70,8 +77,14 @@ class AuctionPanelStation extends DataObject
     {
         $result = parent::validate();
         $ch = (int) $this->DTXChannel;
-        if ($ch < 1 || $ch > 8) {
-            $result->addFieldError('DTXChannel', 'DTX Channel must be between 1 and 8.');
+        $maxCh = 64;
+        $lane = $this->Lane();
+        if ($lane && $lane->exists() && $lane->DTXDevice()->exists()) {
+            $maxCh = $lane->DTXDevice()->getChannelCapacity();
+        }
+
+        if ($ch < 1 || $ch > $maxCh) {
+            $result->addFieldError('DTXChannel', "DTX Channel must be between 1 and {$maxCh} for the assigned DTX model.");
         }
         if (trim((string) $this->Title) === '') {
             $this->Title = "Mic {$ch} Panel";

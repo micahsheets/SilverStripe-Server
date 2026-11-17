@@ -55,7 +55,7 @@ class DTXAudioService
      */
     public function getDeviceState(string $deviceModel = 'DTX-44'): array
     {
-        $channelCount = (stripos($deviceModel, '88') !== false) ? 8 : 4;
+        $channelCount = match (strtoupper(trim($deviceModel))) { 'DTX-64' => 64, 'DTX-32' => 32, 'DTX-88' => 8, default => (stripos($deviceModel, '64') !== false ? 64 : (stripos($deviceModel, '32') !== false ? 32 : (stripos($deviceModel, '88') !== false ? 8 : 4))) };
         $channels = [];
 
         // Build baseline channel table for Inputs (ioType=0) and Outputs (ioType=1)
