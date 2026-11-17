@@ -11,7 +11,10 @@ use SilverStripe\Admin\ModelAdmin;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Forms\FormAction;
+use SilverStripe\Forms\GridField\GridField;
+use SilverStripe\Forms\GridField\GridFieldPaginator;
 use SilverStripe\Forms\LiteralField;
+use SilverStripe\ORM\DB;
 use SilverStripe\Security\SecurityToken;
 
 class AuctioneerAdmin extends ModelAdmin
@@ -51,15 +54,68 @@ class AuctioneerAdmin extends ModelAdmin
         }
 
         if ($this->modelClass === AuctionPanelStation::class) {
+            // Show up to 100 stations on one page so drag-and-drop reorders across all lanes cleanly
+            $grid = $form->Fields()->dataFieldByName($this->sanitiseClassName($this->modelClass));
+            if ($grid instanceof GridField) {
+                $paginator = $grid->getConfig()->getComponentByType(GridFieldPaginator::class);
+                if ($paginator) {
+                    $paginator->setItemsPerPage(100);
+                }
+            }
+
             $csrf = SecurityToken::inst()->getValue();
+            $endpoint = $this->Link('reorderstations');
             $form->Fields()->push(LiteralField::create('StationDragSortScript', <<<HTML
 <style>
 .grid-field__table tbody tr[data-id] { cursor: grab; }
+.grid-field__table tbody tr[data-id]:active { cursor: grabbing; }
 .grid-field__table tbody tr.auc-dragging { opacity: 0.45; background: rgba(37, 99, 235, 0.14); }
 .grid-field__table tbody tr.auc-drag-over { border-top: 2px solid #2563eb; }
+#aucSortBanner {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #eef2ff;
+    color: #1e40af;
+}
 </style>
+<div id="aucSortBanner">Drag and drop any row to reorder — order saves automatically.</div>
 <script>
 (function() {
+    function saveStationOrder(tbody) {
+        var banner = document.getElementById('aucSortBanner');
+        var ids = Array.from(tbody.querySelectorAll('tr[data-id]')).map(function(r) {
+            return Number(r.dataset.id);
+        });
+        if (banner) banner.textContent = 'Saving order...';
+        fetch('{$endpoint}', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-SecurityID': '{$csrf}'
+            },
+            body: JSON.stringify({ ids: ids })
+        })
+        .then(function(res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
+        .then(function(data) {
+            if (banner) {
+                banner.textContent = data && data.success
+                    ? 'Sort order saved (' + (data.updated || ids.length) + ' panels).'
+                    : 'Error saving sort order.';
+            }
+        })
+        .catch(function(err) {
+            if (banner) banner.textContent = 'Save failed: ' + err.message;
+        });
+    }
+
     function bindStationDragSort() {
         var tbody = document.querySelector('.grid-field__table tbody');
         if (!tbody || tbody.dataset.dragBound === '1') return;
@@ -76,12 +132,7 @@ class AuctioneerAdmin extends ModelAdmin
             row.addEventListener('dragend', function() {
                 row.classList.remove('auc-dragging');
                 tbody.querySelectorAll('tr').forEach(function(r) { r.classList.remove('auc-drag-over'); });
-                var ids = Array.from(tbody.querySelectorAll('tr[data-id]')).map(function(r) { return Number(r.dataset.id); });
-                fetch('/admin/auctioneers/reorderstations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-SecurityID': '{$csrf}' },
-                    body: JSON.stringify({ ids: ids })
-                });
+                saveStationOrder(tbody);
             });
             row.addEventListener('dragover', function(e) {
                 e.preventDefault();
@@ -122,14 +173,21 @@ HTML
         }
         $payload = json_decode((string) $request->getBody(), true);
         $ids = is_array($payload['ids'] ?? null) ? $payload['ids'] : [];
+        $updated = 0;
+
         foreach ($ids as $index => $id) {
-            $station = AuctionPanelStation::get()->byID((int) $id);
-            if ($station) {
-                $station->SortOrder = ($index + 1) * 10;
-                $station->write();
+            $stationId = (int) $id;
+            if ($stationId > 0) {
+                $sortVal = ($index + 1) * 10;
+                DB::prepared_query(
+                    'UPDATE "AuctionPanelStation" SET "SortOrder" = ? WHERE "ID" = ?',
+                    [$sortVal, $stationId]
+                );
+                $updated++;
             }
         }
-        return HTTPResponse::create(json_encode(['success' => true]), 200)
+
+        return HTTPResponse::create(json_encode(['success' => true, 'updated' => $updated]), 200)
             ->addHeader('Content-Type', 'application/json');
     }
 
