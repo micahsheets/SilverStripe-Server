@@ -11,6 +11,8 @@ use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Control\HTTPResponse_Exception;
+use SilverStripe\ORM\DB;
+use SilverStripe\Security\Permission;
 use SilverStripe\Security\SecurityToken;
 use Throwable;
 
@@ -25,6 +27,7 @@ class AuctioneerAPIController extends Controller
         'apply',
         'saveprofile',
         'createprofile',
+        'reorderstations',
     ];
 
     protected function init(): void
@@ -163,10 +166,6 @@ class AuctioneerAPIController extends Controller
         }
     }
 
-    /**
-     * Only users with CanEditSettings = 1 can save settings.
-     * Supports saving to any target AuctioneerProfile and/or pushing/saving across any Lane or Station.
-     */
     public function saveprofile(HTTPRequest $request): HTTPResponse
     {
         if (!$request->isPOST()) {
@@ -189,7 +188,6 @@ class AuctioneerAPIController extends Controller
                 ], 403);
             }
 
-            // Target Auctioneer Profile to save into (defaults to logged-in user, or any selected user)
             $targetUserId = (int) ($data['target_auctioneer_id'] ?? 0);
             $targetProfile = $targetUserId > 0
                 ? AuctioneerProfile::get()->byID($targetUserId)
@@ -199,7 +197,6 @@ class AuctioneerAPIController extends Controller
                 return $this->jsonResponse(['success' => false, 'error' => 'Target auctioneer profile not found.'], 404);
             }
 
-            // Target Station / Lane to apply & read DSP settings from (defaults to current station, or any selected lane/station)
             $targetStationId = (int) ($data['target_station_id'] ?? 0);
             $targetLaneId = (int) ($data['target_lane_id'] ?? 0);
 
@@ -223,7 +220,6 @@ class AuctioneerAPIController extends Controller
             $targetProfile->applyDspSettingsArray($merged);
             $targetProfile->write();
 
-            // Push the saved settings onto the chosen target lane/station (and all panels on target lane if requested)
             if (!empty($data['apply_to_entire_lane']) && $targetLaneId > 0) {
                 $lane = AuctionLane::get()->byID($targetLaneId);
                 if ($lane) {
@@ -236,10 +232,10 @@ class AuctioneerAPIController extends Controller
             }
 
             return $this->jsonResponse([
-                'success'           => true,
-                'station'           => $this->serializeStation($sourceStation),
-                'savedToProfile'    => $targetProfile->Title,
-                'appliedToStation'  => $targetStation->Lane()->Title . ' · ' . $targetStation->Title,
+                'success'          => true,
+                'station'          => $this->serializeStation($sourceStation),
+                'savedToProfile'   => $targetProfile->Title,
+                'appliedToStation' => $targetStation->Lane()->Title . ' · ' . $targetStation->Title,
             ]);
         } catch (Throwable $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
@@ -276,6 +272,39 @@ class AuctioneerAPIController extends Controller
             ]);
         } catch (Throwable $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function reorderstations(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
+        }
+
+        if (!Permission::check('ADMIN') && !Permission::check('CMS_ACCESS_App\Auctioneer\Admin\AuctioneerAdmin')) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Admin access required.'], 403);
+        }
+
+        try {
+            $data = $this->parseRequestData($request);
+            $ids = is_array($data['ids'] ?? null) ? $data['ids'] : [];
+            $updated = 0;
+
+            foreach ($ids as $index => $id) {
+                $stationId = (int) $id;
+                if ($stationId > 0) {
+                    $sortVal = ($index + 1) * 10;
+                    DB::prepared_query(
+                        'UPDATE "AuctionPanelStation" SET "SortOrder" = ? WHERE "ID" = ?',
+                        [$sortVal, $stationId]
+                    );
+                    $updated++;
+                }
+            }
+
+            return $this->jsonResponse(['success' => true, 'updated' => $updated]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 
