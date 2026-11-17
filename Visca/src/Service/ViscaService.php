@@ -17,7 +17,7 @@ class ViscaService
     private const HEADER = "\x81";
     private const TERMINATOR = "\xFF";
 
-    public function __construct(string $ipAddress, int $port = 52381)
+    public function __construct(string $ipAddress, int $port = 1259)
     {
         $this->ipAddress = $ipAddress;
         $this->port = $port;

@@ -58,7 +58,7 @@ class PtzOpticsDiscoveryService
 
             $results[] = [
                 'ip'            => $ip,
-                'port'          => (int) ($info['port'] ?? 52381),
+                'port'          => (int) ($info['port'] ?? 1259),
                 'mac'           => $info['mac'] ?? '',
                 'model'         => $model,
                 'hostname'      => $hostname,
@@ -238,7 +238,7 @@ class PtzOpticsDiscoveryService
 
                 $found[$deviceIp] = [
                     'ip'       => $deviceIp,
-                    'port'     => 52381,
+                    'port'     => 1259,
                     'mac'      => $mac,
                     'model'    => $model,
                     'hostname' => $model . ' (' . $deviceIp . ')',
@@ -291,7 +291,7 @@ class PtzOpticsDiscoveryService
                 }
                 $found[$fromIp] = [
                     'ip'       => $fromIp,
-                    'port'     => 52381,
+                    'port'     => 1259,
                     'model'    => 'PTZOptics Move SE',
                     'hostname' => 'PTZOptics (' . $fromIp . ')',
                     'source'   => 'mDNS Multicast',
@@ -360,7 +360,7 @@ class PtzOpticsDiscoveryService
                 }
                 $found[$ip] = [
                     'ip'       => $ip,
-                    'port'     => 52381,
+                    'port'     => 1259,
                     'model'    => 'PTZOptics Move SE',
                     'hostname' => $hostname,
                     'source'   => 'HTTP CGI Probe',

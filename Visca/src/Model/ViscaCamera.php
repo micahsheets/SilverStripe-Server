@@ -23,7 +23,7 @@ class ViscaCamera extends DataObject
     );
 
     private static $defaults = array(
-        'Port' => 52381,
+        'Port' => 1259,
         'Active' => 1
     );
 
@@ -52,7 +52,7 @@ class ViscaCamera extends DataObject
         $fields->replaceField(
             'Port',
             TextField::create('Port', 'Port')
-                ->setDescription('VISCA UDP Port (default 52381)')
+                ->setDescription('VISCA UDP Port (default 1259)')
         );
 
         return $fields;

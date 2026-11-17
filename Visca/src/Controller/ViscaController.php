@@ -124,7 +124,7 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
             return $this->httpError(404, 'Camera not found');
         }
 
-        $service = new ViscaService($camera->IPAddress, (int) ($camera->Port ?: 52381));
+        $service = new ViscaService($camera->IPAddress, (int) ($camera->Port ?: 1259));
         $success = false;
         $errorDetail = '';
 
@@ -253,7 +253,7 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
                 $cam = ViscaCamera::get()->filter('IPAddress', $ip)->first() ?: ViscaCamera::create();
                 $cam->Title = trim((string) ($item['title'] ?? $item['hostname'] ?? "PTZOptics ({$ip})"));
                 $cam->IPAddress = $ip;
-                $cam->Port = (int) ($item['port'] ?? 52381);
+                $cam->Port = (int) ($item['port'] ?? 1259);
                 if (isset($item['locationId']) && (int) $item['locationId'] > 0) {
                     $cam->LocationID = (int) $item['locationId'];
                 }
