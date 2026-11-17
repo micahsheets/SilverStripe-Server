@@ -62,8 +62,9 @@ class AuctioneerAPIController extends Controller
         }
 
         $auctioneers = array_map(fn(AuctioneerProfile $a) => [
-            'id'    => (int) $a->ID,
-            'title' => $a->Title,
+            'id'              => (int) $a->ID,
+            'title'           => $a->Title,
+            'canEditSettings' => (bool) $a->CanEditSettings,
         ], AuctioneerProfile::get()->filter('Active', 1)->toArray());
 
         return $this->jsonResponse([
@@ -162,6 +163,10 @@ class AuctioneerAPIController extends Controller
         }
     }
 
+    /**
+     * Only users with CanEditSettings = 1 can save settings.
+     * Supports saving to any target AuctioneerProfile and/or pushing/saving across any Lane or Station.
+     */
     public function saveprofile(HTTPRequest $request): HTTPResponse
     {
         if (!$request->isPOST()) {
@@ -170,23 +175,71 @@ class AuctioneerAPIController extends Controller
 
         try {
             $data = $this->parseRequestData($request);
-            $station = AuctionPanelStation::get()->byID((int) ($data['station_id'] ?? 0));
-            $profile = $station ? $station->ActiveAuctioneer() : null;
-            if (!$station || !$profile || !$profile->exists()) {
-                return $this->jsonResponse(['success' => false, 'error' => 'No active auctioneer session to save.'], 403);
+            $sourceStation = AuctionPanelStation::get()->byID((int) ($data['station_id'] ?? 0));
+            $loggedInUser = $sourceStation ? $sourceStation->ActiveAuctioneer() : null;
+
+            if (!$sourceStation || !$loggedInUser || !$loggedInUser->exists()) {
+                return $this->jsonResponse(['success' => false, 'error' => 'No active auctioneer session on this panel.'], 403);
             }
 
-            $uiSettings = is_array($data['settings'] ?? null) ? $data['settings'] : $profile->toDspSettingsArray();
-            $merged = AuctioneerDSPService::singleton()->readLiveSettingsFromStation($station, $uiSettings);
+            if (!$loggedInUser->CanEditSettings) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'error'   => 'Permission denied: Your profile does not have "Can Edit & Save Settings" enabled.',
+                ], 403);
+            }
 
-            $profile->applyDspSettingsArray($merged);
-            $profile->write();
+            // Target Auctioneer Profile to save into (defaults to logged-in user, or any selected user)
+            $targetUserId = (int) ($data['target_auctioneer_id'] ?? 0);
+            $targetProfile = $targetUserId > 0
+                ? AuctioneerProfile::get()->byID($targetUserId)
+                : $loggedInUser;
 
-            AuctioneerDSPService::singleton()->applySettingsToStation($station, $profile->toDspSettingsArray());
+            if (!$targetProfile || !$targetProfile->exists()) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Target auctioneer profile not found.'], 404);
+            }
+
+            // Target Station / Lane to apply & read DSP settings from (defaults to current station, or any selected lane/station)
+            $targetStationId = (int) ($data['target_station_id'] ?? 0);
+            $targetLaneId = (int) ($data['target_lane_id'] ?? 0);
+
+            $targetStation = $sourceStation;
+            if ($targetStationId > 0) {
+                $foundSt = AuctionPanelStation::get()->byID($targetStationId);
+                if ($foundSt) {
+                    $targetStation = $foundSt;
+                }
+            } elseif ($targetLaneId > 0) {
+                $foundLane = AuctionLane::get()->byID($targetLaneId);
+                $firstSt = $foundLane ? $foundLane->Stations()->first() : null;
+                if ($firstSt) {
+                    $targetStation = $firstSt;
+                }
+            }
+
+            $uiSettings = is_array($data['settings'] ?? null) ? $data['settings'] : $targetProfile->toDspSettingsArray();
+            $merged = AuctioneerDSPService::singleton()->readLiveSettingsFromStation($sourceStation, $uiSettings);
+
+            $targetProfile->applyDspSettingsArray($merged);
+            $targetProfile->write();
+
+            // Push the saved settings onto the chosen target lane/station (and all panels on target lane if requested)
+            if (!empty($data['apply_to_entire_lane']) && $targetLaneId > 0) {
+                $lane = AuctionLane::get()->byID($targetLaneId);
+                if ($lane) {
+                    foreach ($lane->Stations() as $laneStation) {
+                        AuctioneerDSPService::singleton()->applySettingsToStation($laneStation, $targetProfile->toDspSettingsArray());
+                    }
+                }
+            } else {
+                AuctioneerDSPService::singleton()->applySettingsToStation($targetStation, $targetProfile->toDspSettingsArray());
+            }
 
             return $this->jsonResponse([
-                'success' => true,
-                'station' => $this->serializeStation($station),
+                'success'           => true,
+                'station'           => $this->serializeStation($sourceStation),
+                'savedToProfile'    => $targetProfile->Title,
+                'appliedToStation'  => $targetStation->Lane()->Title . ' · ' . $targetStation->Title,
             ]);
         } catch (Throwable $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
@@ -203,19 +256,22 @@ class AuctioneerAPIController extends Controller
             $data = $this->parseRequestData($request);
             $name = trim((string) ($data['name'] ?? ''));
             $pin = trim((string) ($data['pin'] ?? ''));
+            $canEdit = !empty($data['can_edit_settings']) ? 1 : 0;
 
             $profile = AuctioneerProfile::create([
-                'Title'   => $name,
-                'PinCode' => $pin,
-                'Active'  => 1,
+                'Title'           => $name,
+                'PinCode'         => $pin,
+                'CanEditSettings' => $canEdit,
+                'Active'          => 1,
             ]);
             $profile->write();
 
             return $this->jsonResponse([
                 'success'    => true,
                 'auctioneer' => [
-                    'id'    => (int) $profile->ID,
-                    'title' => $profile->Title,
+                    'id'              => (int) $profile->ID,
+                    'title'           => $profile->Title,
+                    'canEditSettings' => (bool) $profile->CanEditSettings,
                 ],
             ]);
         } catch (Throwable $e) {
@@ -237,9 +293,10 @@ class AuctioneerAPIController extends Controller
             'laneTitle'  => $lane && $lane->exists() ? $lane->Title : 'Unassigned Lane',
             'dtxTitle'   => ($lane && $lane->exists() && $lane->DTXDevice()->exists()) ? $lane->DTXDevice()->Title : 'No DTX',
             'auctioneer' => $hasActive ? [
-                'id'       => (int) $active->ID,
-                'title'    => $active->Title,
-                'settings' => $active->toDspSettingsArray(),
+                'id'              => (int) $active->ID,
+                'title'           => $active->Title,
+                'canEditSettings' => (bool) $active->CanEditSettings,
+                'settings'        => $active->toDspSettingsArray(),
             ] : null,
             'defaultSettings' => ($lane && $lane->exists())
                 ? $lane->getDefaultDspSettingsArray()

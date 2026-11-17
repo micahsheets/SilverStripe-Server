@@ -66,14 +66,24 @@ function setStation(station) {
     document.getElementById('aucStationTitle').textContent = station.laneTitle + ' · ' + station.title;
     document.getElementById('aucStationSub').textContent = station.dtxTitle + ' · Mic Input ' + station.dtxChannel;
 
+    const saveBtn = document.getElementById('aucSaveBtn');
+    const actionBar = document.getElementById('aucActionBar');
+
     if (station.auctioneer) {
         aucState.liveSettings = JSON.parse(JSON.stringify(station.auctioneer.settings));
         document.getElementById('aucActiveName').textContent = station.auctioneer.title;
+
+        const canEdit = !!station.auctioneer.canEditSettings;
+        saveBtn.style.display = canEdit ? 'inline-block' : 'none';
+        actionBar.classList.toggle('can-save', canEdit);
+
         syncSlidersFromSettings(aucState.liveSettings);
         document.getElementById('aucLoginView').style.display = 'none';
         document.getElementById('aucActiveView').style.display = 'flex';
     } else {
         aucState.liveSettings = null;
+        saveBtn.style.display = 'none';
+        actionBar.classList.remove('can-save');
         document.getElementById('aucActiveView').style.display = 'none';
         document.getElementById('aucLoginView').style.display = 'flex';
     }
@@ -247,16 +257,66 @@ async function pushLiveDspSettings() {
     }
 }
 
-async function saveAuctioneerProfile() {
+function openSaveTargetModal() {
+    if (!aucState.activeStation || !aucState.activeStation.auctioneer || !aucState.activeStation.auctioneer.canEditSettings) {
+        showAucToast('Your profile does not have permission to save settings.', true);
+        return;
+    }
+
+    const profSel = document.getElementById('selSaveProfile');
+    profSel.innerHTML = '';
+    aucState.auctioneers.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = String(a.id);
+        opt.textContent = a.title + (a.id === aucState.activeStation.auctioneer.id ? ' (Current User)' : '');
+        if (a.id === aucState.activeStation.auctioneer.id) opt.selected = true;
+        profSel.appendChild(opt);
+    });
+
+    const targetSel = document.getElementById('selSaveTarget');
+    targetSel.innerHTML = '';
+    aucState.lanes.forEach(lane => {
+        const grp = document.createElement('optgroup');
+        grp.label = `${lane.title} (${lane.dtxTitle})`;
+        lane.stations.forEach(st => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ laneId: lane.id, stationId: st.id });
+            opt.textContent = `${lane.title} · ${st.title} (Ch ${st.dtxChannel})` + (st.id === aucState.activeStation.id ? ' [This Panel]' : '');
+            if (st.id === aucState.activeStation.id) opt.selected = true;
+            grp.appendChild(opt);
+        });
+        targetSel.appendChild(grp);
+    });
+
+    document.getElementById('chkSaveEntireLane').checked = false;
+    document.getElementById('aucSaveTargetModal').classList.add('open');
+}
+
+function closeSaveTargetModal() {
+    document.getElementById('aucSaveTargetModal').classList.remove('open');
+}
+
+async function confirmSaveSettings() {
     if (!aucState.activeStation || !aucState.liveSettings) return;
+    const targetUserId = Number(document.getElementById('selSaveProfile').value || 0);
+    let parsedTarget = { laneId: aucState.activeStation.laneId, stationId: aucState.activeStation.id };
+    try {
+        parsedTarget = JSON.parse(document.getElementById('selSaveTarget').value);
+    } catch (e) {}
+
     try {
         const data = await aucPost('/api/auctioneer/saveprofile', {
             station_id: aucState.activeStation.id,
+            target_auctioneer_id: targetUserId,
+            target_lane_id: parsedTarget.laneId,
+            target_station_id: parsedTarget.stationId,
+            apply_to_entire_lane: document.getElementById('chkSaveEntireLane').checked,
             settings: aucState.liveSettings
         });
         if (data.success) {
+            closeSaveTargetModal();
             setStation(data.station);
-            showAucToast('Saved mic settings to ' + data.station.auctioneer.title);
+            showAucToast(`Saved to ${data.savedToProfile} & pushed to ${data.appliedToStation}`);
         } else {
             showAucToast(data.error || 'Save failed', true);
         }
@@ -325,14 +385,16 @@ function closeAddAuctioneerModal() { document.getElementById('aucNewUserModal').
 async function createAuctioneerProfile() {
     const name = document.getElementById('newAucName').value.trim();
     const pin = document.getElementById('newAucPin').value.trim();
+    const canEdit = document.getElementById('newAucCanEdit').checked;
     try {
-        const data = await aucPost('/api/auctioneer/createprofile', { name, pin });
+        const data = await aucPost('/api/auctioneer/createprofile', { name, pin, can_edit_settings: canEdit });
         if (!data.success) {
             showAucToast(data.error || 'Could not create auctioneer', true);
             return;
         }
         document.getElementById('newAucName').value = '';
         document.getElementById('newAucPin').value = '';
+        document.getElementById('newAucCanEdit').checked = false;
         closeAddAuctioneerModal();
         aucState.auctioneers.push(data.auctioneer);
         aucState.auctioneers.sort((a, b) => a.title.localeCompare(b.title));

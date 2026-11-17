@@ -33,7 +33,7 @@
 
         .auc-modal { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.86); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 12px; }
         .auc-modal.open { display: flex; }
-        .auc-pin-card { width: min(360px, 100%); background: #0f172a; color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .auc-pin-card { width: min(380px, 100%); background: #0f172a; color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
         body[data-theme="light"] .auc-pin-card { background: #ffffff; color: #0f172a; }
         .auc-pin-display { text-align: center; font-size: 1.6rem; letter-spacing: 0.35em; padding: 10px; border-radius: 10px; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(148, 163, 184, 0.3); min-height: 2.2rem; }
         body[data-theme="light"] .auc-pin-display { background: #f8fafc; }
@@ -49,9 +49,10 @@
         .auc-slider-head { display: flex; justify-content: space-between; font-size: 0.86rem; font-weight: 600; }
         .auc-slider-row input[type="range"] { width: 100%; height: 30px; }
         .auc-eq-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .auc-action-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; }
-        .auc-input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.5); color: inherit; font-size: 1rem; }
-        body[data-theme="light"] .auc-input { background: #f8fafc; }
+        .auc-action-bar { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: auto; }
+        .auc-action-bar.can-save { grid-template-columns: 1fr 1fr; }
+        .auc-input, .auc-select { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.5); color: inherit; font-size: 0.96rem; }
+        body[data-theme="light"] .auc-input, body[data-theme="light"] .auc-select { background: #f8fafc; }
     </style>
 </head>
 <body class="audio-panel" data-theme="$PanelTheme" data-initial-station="$InitialStationID">
@@ -142,14 +143,15 @@
             </div>
         </div>
 
-        <div class="auc-action-bar">
-            <button type="button" class="auc-btn success" onclick="saveAuctioneerProfile()">Save My Settings</button>
+        <div class="auc-action-bar" id="aucActionBar">
+            <button type="button" class="auc-btn success" id="aucSaveBtn" style="display:none;" onclick="openSaveTargetModal()">Save Settings...</button>
             <button type="button" class="auc-btn danger" onclick="logoutAuctioneer()">Log Out &amp; Reset</button>
         </div>
     </section>
 
 </div>
 
+<!-- PIN Keypad Modal -->
 <div class="auc-modal" id="aucPinModal">
     <div class="auc-pin-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -174,6 +176,28 @@
     </div>
 </div>
 
+<!-- Authorized Save Target Modal (Choose Any User & Any Lane / Mic) -->
+<div class="auc-modal" id="aucSaveTargetModal">
+    <div class="auc-pin-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>Save Settings to User &amp; Lane</strong>
+            <button type="button" class="auc-btn" style="padding:6px 10px;" onclick="closeSaveTargetModal()">Cancel</button>
+        </div>
+        <label style="font-size:0.82rem; font-weight:600; opacity:0.85;">Save Into Auctioneer Profile</label>
+        <select id="selSaveProfile" class="auc-select"></select>
+
+        <label style="font-size:0.82rem; font-weight:600; opacity:0.85;">Target Lane &amp; Mic Channel</label>
+        <select id="selSaveTarget" class="auc-select"></select>
+
+        <label style="font-size:0.85rem; display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="chkSaveEntireLane"> Apply to all mics on target lane
+        </label>
+
+        <button type="button" class="auc-btn success" onclick="confirmSaveSettings()">Save &amp; Push to Lane</button>
+    </div>
+</div>
+
+<!-- Lane / Touch Panel Station Picker Modal -->
 <div class="auc-modal" id="aucStationModal">
     <div class="auc-pin-card" style="width:min(460px, 100%); max-height:85vh; overflow:auto;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -184,6 +208,7 @@
     </div>
 </div>
 
+<!-- Quick Add Auctioneer Modal -->
 <div class="auc-modal" id="aucNewUserModal">
     <div class="auc-pin-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -192,6 +217,9 @@
         </div>
         <input type="text" id="newAucName" class="auc-input" placeholder="Auctioneer Full Name">
         <input type="tel" id="newAucPin" class="auc-input" maxlength="8" inputmode="numeric" placeholder="PIN (4-8 digits)">
+        <label style="font-size:0.88rem; display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="newAucCanEdit"> Can Edit &amp; Save Settings Across Lanes
+        </label>
         <button type="button" class="auc-btn primary" onclick="createAuctioneerProfile()">Create Auctioneer</button>
     </div>
 </div>

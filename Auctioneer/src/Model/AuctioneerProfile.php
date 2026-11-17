@@ -24,6 +24,7 @@ class AuctioneerProfile extends DataObject
         'Title'             => 'Varchar(100)',
         'PinCode'           => 'Varchar(12)',
         'Active'            => 'Boolean(1)',
+        'CanEditSettings'   => 'Boolean(0)',
         'SortOrder'         => 'Int',
         'SensitivityStep'   => 'Int',
         'InputGainDb'       => 'Float',
@@ -39,6 +40,7 @@ class AuctioneerProfile extends DataObject
 
     private static array $defaults = [
         'Active'          => 1,
+        'CanEditSettings' => 0,
         'SensitivityStep' => 10,
         'InputGainDb'     => 0.0,
         'PeqEnabled'      => 1,
@@ -51,16 +53,18 @@ class AuctioneerProfile extends DataObject
     ];
 
     private static array $indexes = [
-        'Active' => true,
+        'Active'          => true,
+        'CanEditSettings' => true,
     ];
 
     private static array $summary_fields = [
-        'Title'           => 'Auctioneer Name',
-        'PinCode'         => 'PIN',
-        'SensitivityDb'   => 'Mic Sens',
-        'InputGainDb'     => 'Gain (dB)',
-        'CompSummary'     => 'Compressor',
-        'Active.Nice'     => 'Active',
+        'Title'                => 'Auctioneer Name',
+        'PinCode'              => 'PIN',
+        'CanEditSettings.Nice' => 'Can Save / Edit Settings',
+        'SensitivityDb'        => 'Mic Sens',
+        'InputGainDb'          => 'Gain (dB)',
+        'CompSummary'          => 'Compressor',
+        'Active.Nice'          => 'Active',
     ];
 
     public static function defaultPeqBands(): array
@@ -182,6 +186,7 @@ class AuctioneerProfile extends DataObject
                     TextField::create('PinCode', 'PIN (4-8 digits, can be shared across users)')
                         ->setAttribute('inputmode', 'numeric')
                         ->setAttribute('maxlength', '8'),
+                    CheckboxField::create('CanEditSettings', 'Can Edit & Save Settings (Allows saving & pushing settings across any lane)'),
                     CheckboxField::create('Active', 'Active (Show on Touch Panels)'),
                     NumericField::create('SortOrder', 'Sort Order')->setHTML5(true)
                 ),
