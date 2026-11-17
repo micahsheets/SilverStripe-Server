@@ -7,6 +7,7 @@
 /_resources/
 /public/_resources/
 /public/assets/
+/patches/
 # Environment & local secrets
 .env
 

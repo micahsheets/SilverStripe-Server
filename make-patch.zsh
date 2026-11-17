@@ -82,8 +82,11 @@ cat << EOF > "$TMP_DIR/manifest.json"
 }
 EOF
 
-# 1. Stage core directories
+# 1. Stage core directories & Composer PSR-4 autoload map
 rsync -a --exclude='.DS_Store' app/ "$TMP_DIR/app/"
+cp composer.json "$TMP_DIR/composer.json"
+mkdir -p "$TMP_DIR/vendor/composer"
+rsync -a --exclude='.DS_Store' vendor/composer/ "$TMP_DIR/vendor/composer/" 
 rsync -a --exclude='.DS_Store' --exclude='assets/' public/ "$TMP_DIR/public/"
 
 # 2. Stage selected top-level module directories
