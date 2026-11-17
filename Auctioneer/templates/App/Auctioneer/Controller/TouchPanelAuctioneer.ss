@@ -56,6 +56,58 @@
         .auc-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .auc-page-label { font-size: 0.88rem; font-weight: 600; opacity: 0.85; }
 
+        /* Full-Screen Splash View for Standard Auctioneers (CanEditSettings = 0) */
+        .auc-splash-screen {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 16px;
+            gap: 14px;
+        }
+        .auc-splash-logo {
+            max-width: 240px;
+            max-height: 110px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+        .auc-splash-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            margin: 0;
+        }
+        .auc-splash-user {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #4ade80;
+            margin: 0;
+        }
+        body[data-theme="light"] .auc-splash-user { color: #16a34a; }
+        .auc-splash-lane {
+            font-size: 0.95rem;
+            opacity: 0.82;
+            margin: 0;
+        }
+        .auc-splash-logout-btn {
+            margin-top: 8px;
+            min-width: 220px;
+            padding: 16px 28px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            border-radius: 999px;
+            background: #dc2626;
+            border: 1px solid #ef4444;
+            color: #ffffff;
+            cursor: pointer;
+            touch-action: manipulation;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+        }
+        .auc-splash-logout-btn:active { transform: scale(0.98); }
+
         .auc-modal { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.86); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 12px; }
         .auc-modal.open { display: flex; }
         .auc-pin-card { width: min(380px, 100%); background: #0f172a; color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -74,8 +126,7 @@
         .auc-slider-head { display: flex; justify-content: space-between; font-size: 0.86rem; font-weight: 600; }
         .auc-slider-row input[type="range"] { width: 100%; height: 30px; }
         .auc-eq-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .auc-action-bar { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: auto; }
-        .auc-action-bar.can-save { grid-template-columns: 1fr 1fr; }
+        .auc-action-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; }
         .auc-input, .auc-select { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.5); color: inherit; font-size: 0.96rem; }
         body[data-theme="light"] .auc-input, body[data-theme="light"] .auc-select { background: #f8fafc; }
     </style>
@@ -83,7 +134,7 @@
 <body class="audio-panel" data-theme="$PanelTheme" data-initial-station="$InitialStationID">
 <div class="panel-backdrop auc-shell">
 
-    <header class="auc-topbar">
+    <header class="auc-topbar" id="aucTopbar">
         <div class="auc-brand">
             <% if $PanelSettings.PanelLogo.exists %>
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(32).URL" alt="Logo">
@@ -99,6 +150,7 @@
         </div>
     </header>
 
+    <!-- VIEW 1: Paginated Auctioneer Login Directory -->
     <section id="aucLoginView" style="display:flex; flex-direction:column; gap:10px; flex:1;">
         <div style="display:flex; gap:8px;">
             <input type="search" id="aucSearchInput" class="auc-input" placeholder="Filter auctioneer name..." oninput="aucFilterNames()">
@@ -113,10 +165,22 @@
         </div>
     </section>
 
+    <!-- VIEW 2A: Splash-Style Active View for Standard Auctioneers (CanEditSettings = 0) -->
+    <section id="aucSplashActiveView" class="auc-splash-screen">
+        <% if $PanelSettings.PanelLogo.exists %>
+            <img src="$PanelSettings.PanelLogo.ScaleWidth(360).URL" alt="Facility Logo" class="auc-splash-logo">
+        <% end_if %>
+        <h1 class="auc-splash-title"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>Auctioneer Mic Active<% end_if %></h1>
+        <p class="auc-splash-user" id="aucSplashUserName">-</p>
+        <p class="auc-splash-lane" id="aucSplashLaneInfo">Lane 01 · Mic Input 1</p>
+        <button type="button" class="auc-splash-logout-btn" onclick="logoutAuctioneer()">Log Out</button>
+    </section>
+
+    <!-- VIEW 2B: Full DSP Control & Cross-Lane Save View for Authorized Users (CanEditSettings = 1) -->
     <section id="aucActiveView" class="auc-dsp-panel" style="display:none;">
         <div class="auc-card" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <div>
-                <div style="font-size:0.75rem; opacity:0.75;">ACTIVE AUCTIONEER</div>
+                <div style="font-size:0.75rem; opacity:0.75;">ACTIVE AUCTIONEER (EDIT MODE)</div>
                 <div style="font-size:1.15rem; font-weight:800;" id="aucActiveName">-</div>
             </div>
             <button type="button" class="auc-btn" id="aucMuteBtn" onclick="toggleAucMute()">MIC LIVE</button>
@@ -174,7 +238,7 @@
         </div>
 
         <div class="auc-action-bar" id="aucActionBar">
-            <button type="button" class="auc-btn success" id="aucSaveBtn" style="display:none;" onclick="openSaveTargetModal()">Save Settings...</button>
+            <button type="button" class="auc-btn success" id="aucSaveBtn" onclick="openSaveTargetModal()">Save Settings...</button>
             <button type="button" class="auc-btn danger" onclick="logoutAuctioneer()">Log Out &amp; Reset</button>
         </div>
     </section>

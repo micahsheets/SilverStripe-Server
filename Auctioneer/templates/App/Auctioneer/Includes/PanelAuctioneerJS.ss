@@ -66,26 +66,37 @@ function setStation(station) {
     document.getElementById('aucStationTitle').textContent = station.laneTitle + ' · ' + station.title;
     document.getElementById('aucStationSub').textContent = station.dtxTitle + ' · Mic Input ' + station.dtxChannel;
 
-    const saveBtn = document.getElementById('aucSaveBtn');
-    const actionBar = document.getElementById('aucActionBar');
+    const topbar = document.getElementById('aucTopbar');
+    const loginView = document.getElementById('aucLoginView');
+    const splashView = document.getElementById('aucSplashActiveView');
+    const editView = document.getElementById('aucActiveView');
 
     if (station.auctioneer) {
         aucState.liveSettings = JSON.parse(JSON.stringify(station.auctioneer.settings));
-        document.getElementById('aucActiveName').textContent = station.auctioneer.title;
-
         const canEdit = !!station.auctioneer.canEditSettings;
-        saveBtn.style.display = canEdit ? 'inline-block' : 'none';
-        actionBar.classList.toggle('can-save', canEdit);
 
-        syncSlidersFromSettings(aucState.liveSettings);
-        document.getElementById('aucLoginView').style.display = 'none';
-        document.getElementById('aucActiveView').style.display = 'flex';
+        if (canEdit) {
+            topbar.style.display = 'flex';
+            loginView.style.display = 'none';
+            splashView.style.display = 'none';
+            document.getElementById('aucActiveName').textContent = station.auctioneer.title;
+            syncSlidersFromSettings(aucState.liveSettings);
+            editView.style.display = 'flex';
+        } else {
+            // Full-screen splash view with only Logo, Title, Active User, and Log Out button
+            topbar.style.display = 'none';
+            loginView.style.display = 'none';
+            editView.style.display = 'none';
+            document.getElementById('aucSplashUserName').textContent = station.auctioneer.title;
+            document.getElementById('aucSplashLaneInfo').textContent = `${station.laneTitle} · ${station.title} (Mic ${station.dtxChannel})`;
+            splashView.style.display = 'flex';
+        }
     } else {
         aucState.liveSettings = null;
-        saveBtn.style.display = 'none';
-        actionBar.classList.remove('can-save');
-        document.getElementById('aucActiveView').style.display = 'none';
-        document.getElementById('aucLoginView').style.display = 'flex';
+        topbar.style.display = 'flex';
+        splashView.style.display = 'none';
+        editView.style.display = 'none';
+        loginView.style.display = 'flex';
     }
 }
 
