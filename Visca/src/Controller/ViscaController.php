@@ -26,16 +26,18 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
     private static string $url_segment = 'panel/camera';
 
     private static array $url_handlers = [
-        ''          => 'index',
-        'api'       => 'api',
-        'discover'  => 'discover',
-        'setip'     => 'setip',
-        'import'    => 'import',
+        ''         => 'index',
+        'api'      => 'api',
+        'snapshot' => 'snapshot',
+        'discover' => 'discover',
+        'setip'    => 'setip',
+        'import'   => 'import',
     ];
 
     private static array $allowed_actions = [
         'index',
         'api',
+        'snapshot',
         'discover',
         'setip',
         'import',
@@ -104,6 +106,138 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
         ]);
     }
 
+    /**
+     * Server-side JPEG snapshot proxy for PTZOptics, AIDA Imaging, and ONVIF cameras.
+     * Avoids browser CORS / mixed-content / Basic-Digest auth prompts on touch panels.
+     */
+    public function snapshot(HTTPRequest $request): HTTPResponse
+    {
+        if (!PanelSecurityGuard::canAccess($request, self::PERM_ACCESS)) {
+            return HTTPResponse::create('Forbidden', 403);
+        }
+
+        $cameraId = (int) $request->getVar('id');
+        $camera = ViscaCamera::get()->byID($cameraId);
+        if (!$camera || !$camera->Active) {
+            return HTTPResponse::create('Camera not found', 404);
+        }
+
+        $ip = trim((string) $camera->IPAddress);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return HTTPResponse::create('Invalid camera IP', 400);
+        }
+
+        $cacheFile = sys_get_temp_dir() . '/cam_snap_uri_' . md5($ip) . '.txt';
+        $cachedUri = is_file($cacheFile) ? trim((string) @file_get_contents($cacheFile)) : '';
+
+        $candidates = array_values(array_unique(array_filter([
+            $cachedUri,
+            "http://{$ip}/snapshot.jpg",
+            "http://{$ip}/cgi-bin/snapshot.cgi",
+            "http://{$ip}/jpg/image.jpg",
+            "http://{$ip}/cgi-bin/param.cgi?get_snapshot",
+            "http://{$ip}/snap.jpg",
+        ])));
+
+        foreach ($candidates as $url) {
+            $jpeg = $this->fetchJpegFromUrl($url, 'admin', 'admin');
+            if ($jpeg !== null) {
+                if ($cachedUri !== $url) {
+                    @file_put_contents($cacheFile, $url);
+                }
+                return HTTPResponse::create($jpeg, 200)
+                    ->addHeader('Content-Type', 'image/jpeg')
+                    ->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            }
+        }
+
+        // Fallback: resolve SnapshotUri dynamically via ONVIF Media GetProfiles + GetSnapshotUri
+        $onvifUri = $this->resolveOnvifSnapshotUri($ip);
+        if ($onvifUri !== '') {
+            $jpeg = $this->fetchJpegFromUrl($onvifUri, 'admin', 'admin');
+            if ($jpeg !== null) {
+                @file_put_contents($cacheFile, $onvifUri);
+                return HTTPResponse::create($jpeg, 200)
+                    ->addHeader('Content-Type', 'image/jpeg')
+                    ->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            }
+        }
+
+        if ($cachedUri !== '' && is_file($cacheFile)) {
+            @unlink($cacheFile);
+        }
+
+        return HTTPResponse::create('Snapshot unavailable from camera', 502)
+            ->addHeader('Cache-Control', 'no-store');
+    }
+
+    private function fetchJpegFromUrl(string $url, string $user, string $pass): ?string
+    {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTPAUTH       => CURLAUTH_ANY,
+            CURLOPT_USERPWD        => "{$user}:{$pass}",
+            CURLOPT_CONNECTTIMEOUT => 1,
+            CURLOPT_TIMEOUT        => 2,
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        // Verify HTTP 200 and JPEG SOI marker (FF D8)
+        if ($code === 200 && is_string($body) && strlen($body) > 256 && strncmp($body, "\xFF\xD8", 2) === 0) {
+            return $body;
+        }
+        return null;
+    }
+
+    private function resolveOnvifSnapshotUri(string $ip): string
+    {
+        $profilesXml = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl">'
+            . '<s:Body><trt:GetProfiles/></s:Body></s:Envelope>';
+
+        $ch = curl_init("http://{$ip}/onvif/media_service");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $profilesXml,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/soap+xml; charset=utf-8'],
+            CURLOPT_CONNECTTIMEOUT => 1,
+            CURLOPT_TIMEOUT        => 2,
+        ]);
+        $resp = (string) curl_exec($ch);
+        curl_close($ch);
+
+        if (!preg_match('/<[^:>]*:?Profiles[^>]*\btoken="([^"]+)"/i', $resp, $pm)) {
+            return '';
+        }
+        $profileToken = htmlspecialchars($pm[1], ENT_XML1);
+
+        $snapXml = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl">'
+            . "<s:Body><trt:GetSnapshotUri><trt:ProfileToken>{$profileToken}</trt:ProfileToken></trt:GetSnapshotUri></s:Body></s:Envelope>";
+
+        $ch2 = curl_init("http://{$ip}/onvif/media_service");
+        curl_setopt_array($ch2, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $snapXml,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/soap+xml; charset=utf-8'],
+            CURLOPT_CONNECTTIMEOUT => 1,
+            CURLOPT_TIMEOUT        => 2,
+        ]);
+        $resp2 = (string) curl_exec($ch2);
+        curl_close($ch2);
+
+        if (preg_match('/<[^:>]*:?Uri[^>]*>([^<]+)</i', $resp2, $um)) {
+            return html_entity_decode(trim($um[1]), ENT_QUOTES | ENT_XML1);
+        }
+        return '';
+    }
+
     public function api(HTTPRequest $request)
     {
         if (!$request->isPOST()) {
@@ -151,7 +285,9 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
         }
 
         if (in_array($command, ['save', 'recall'], true)) {
-            $aCat = 'Camera_Control'; $aTitle = "Camera Preset {$command} on {$camera->Title}"; $aDet = "Cmd: {$command}, Param: {$param}";
+            $aCat = 'Camera_Control';
+            $aTitle = "Camera Preset {$command} on {$camera->Title}";
+            $aDet = "Cmd: {$command}, Param: {$param}";
             $this->extend('onPanelAudit', $aCat, $aTitle, $aDet, $success, $errorDetail);
         }
 
@@ -219,12 +355,20 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
                 $password
             );
 
-            $aCat = 'Camera_Network'; $aTitle = "PTZOptics IP updated ({$currentIp} -> {$result['newIp']})"; $aDet = implode(', ', $result['methods']); $aOk = true; $aErr = '';
+            $aCat = 'Camera_Network';
+            $aTitle = "Camera IP updated ({$currentIp} -> {$result['newIp']})";
+            $aDet = implode(', ', $result['methods']);
+            $aOk = true;
+            $aErr = '';
             $this->extend('onPanelAudit', $aCat, $aTitle, $aDet, $aOk, $aErr);
 
             return $this->jsonResponse($result);
         } catch (Throwable $e) {
-            $aCat = 'Camera_Network'; $aTitle = 'PTZOptics IP update failed'; $aDet = ''; $aOk = false; $aErr = $e->getMessage();
+            $aCat = 'Camera_Network';
+            $aTitle = 'Camera IP update failed';
+            $aDet = '';
+            $aOk = false;
+            $aErr = $e->getMessage();
             $this->extend('onPanelAudit', $aCat, $aTitle, $aDet, $aOk, $aErr);
             return $this->jsonResponse([
                 'success' => false,
@@ -254,7 +398,7 @@ class ViscaController extends Controller implements TouchPanelModuleInterface, P
                     continue;
                 }
                 $cam = ViscaCamera::get()->filter('IPAddress', $ip)->first() ?: ViscaCamera::create();
-                $cam->Title = trim((string) ($item['title'] ?? $item['hostname'] ?? "PTZOptics ({$ip})"));
+                $cam->Title = trim((string) ($item['title'] ?? $item['hostname'] ?? "Camera ({$ip})"));
                 $cam->IPAddress = $ip;
                 $cam->Port = (int) ($item['port'] ?? 1259);
                 if (isset($item['locationId']) && (int) $item['locationId'] > 0) {

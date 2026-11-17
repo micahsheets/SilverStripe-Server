@@ -86,6 +86,106 @@
         });
     });
 
+    // Multi-camera Live Preview Stream Controller
+    const previewSelect = document.getElementById('camPreviewSelect');
+    const previewImg = document.getElementById('camPreviewImg');
+    const previewMsg = document.getElementById('camPreviewMsg');
+    const previewLabel = document.getElementById('camPreviewLabel');
+    const previewDot = document.getElementById('camPreviewDot');
+    const previewToggleBtn = document.getElementById('btnCamPreviewToggle');
+    const previewRefreshBtn = document.getElementById('btnCamPreviewRefresh');
+
+    let previewPaused = false;
+    let previewTimer = null;
+    let previewInFlight = false;
+    let previewFailCount = 0;
+
+    function setPreviewCamera(camId) {
+        if (!previewSelect || !camId || camId === 'all') return;
+        const opt = Array.from(previewSelect.options).find(o => o.value === String(camId));
+        if (opt && previewSelect.value !== String(camId)) {
+            previewSelect.value = String(camId);
+            previewFailCount = 0;
+            if (previewMsg) {
+                previewMsg.textContent = 'Switching camera feed…';
+                previewMsg.style.display = 'flex';
+            }
+            requestNextFrame(true);
+        }
+    }
+
+    function requestNextFrame(immediate = false) {
+        clearTimeout(previewTimer);
+        if (!previewSelect || !previewImg || previewPaused || document.hidden) return;
+        const delay = immediate ? 10 : (previewFailCount > 0 ? Math.min(2500, 500 * previewFailCount) : 220);
+        previewTimer = setTimeout(() => {
+            if (previewPaused || document.hidden || previewInFlight) return;
+            const camId = previewSelect.value;
+            if (!camId) return;
+            const optText = previewSelect.options[previewSelect.selectedIndex]?.text || `Camera ${camId}`;
+            previewInFlight = true;
+
+            const loader = new Image();
+            loader.onload = () => {
+                previewInFlight = false;
+                previewFailCount = 0;
+                previewImg.src = loader.src;
+                if (previewMsg) previewMsg.style.display = 'none';
+                if (previewLabel) previewLabel.textContent = `LIVE • ${optText}`;
+                if (previewDot) previewDot.style.background = '#22c55e';
+                requestNextFrame(false);
+            };
+            loader.onerror = () => {
+                previewInFlight = false;
+                previewFailCount++;
+                if (previewLabel) previewLabel.textContent = `OFFLINE • ${optText}`;
+                if (previewDot) previewDot.style.background = '#f59e0b';
+                if (previewMsg && previewFailCount >= 2) {
+                    previewMsg.textContent = `No snapshot stream available from ${optText}. Check camera IP/network or enable HTTP/ONVIF snapshot on camera.`;
+                    previewMsg.style.display = 'flex';
+                }
+                requestNextFrame(false);
+            };
+            loader.src = `/panel/camera/snapshot?id=${encodeURIComponent(camId)}&_t=${Date.now()}`;
+        }, delay);
+    }
+
+    if (previewSelect) {
+        previewSelect.addEventListener('change', () => {
+            previewFailCount = 0;
+            if (previewMsg) {
+                previewMsg.textContent = 'Loading camera preview…';
+                previewMsg.style.display = 'flex';
+            }
+            requestNextFrame(true);
+        });
+        if (previewToggleBtn) {
+            previewToggleBtn.addEventListener('click', () => {
+                previewPaused = !previewPaused;
+                previewToggleBtn.textContent = previewPaused ? 'Resume' : 'Pause';
+                if (previewPaused) {
+                    clearTimeout(previewTimer);
+                    if (previewDot) previewDot.style.background = '#94a3b8';
+                    if (previewLabel) previewLabel.textContent = 'PAUSED';
+                } else {
+                    requestNextFrame(true);
+                }
+            });
+        }
+        if (previewRefreshBtn) {
+            previewRefreshBtn.addEventListener('click', () => {
+                previewFailCount = 0;
+                requestNextFrame(true);
+            });
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !previewPaused) {
+                requestNextFrame(true);
+            }
+        });
+        requestNextFrame(true);
+    }
+
     const camTabsEl = document.getElementById('camera-device-tabs');
     const camCards = Array.from(document.querySelectorAll('.cam-card[data-device-id]'));
     let activeCamLocation = '0';
@@ -108,6 +208,19 @@
                 }
                 btn.classList.toggle('active', devId === activeCamId);
             });
+        }
+        if (previewSelect) {
+            let firstVisibleVal = '';
+            Array.from(previewSelect.options).forEach(opt => {
+                const locMatch = activeCamLocation === '0' || String(opt.dataset.locationId || '0') === activeCamLocation;
+                opt.hidden = !locMatch;
+                if (locMatch && !firstVisibleVal) firstVisibleVal = opt.value;
+            });
+            if (activeCamId !== 'all') {
+                setPreviewCamera(activeCamId);
+            } else if (firstVisibleVal && previewSelect.options[previewSelect.selectedIndex]?.hidden) {
+                setPreviewCamera(firstVisibleVal);
+            }
         }
     }
 
@@ -148,7 +261,7 @@
         });
     });
 
-    // Cross-subnet PTZOptics Discovery & IP Configuration Modal
+    // Cross-subnet PTZ Camera Discovery & IP Configuration Modal
     const modal = document.getElementById('ptzDiscoverModal');
     const openModalBtn = document.getElementById('btn-discover-ptz');
     const closeModalBtn = document.getElementById('btn-close-ptz-modal');
@@ -165,7 +278,7 @@
         if (!runScanBtn) return;
         runScanBtn.disabled = true;
         runScanBtn.textContent = 'Scanning…';
-        statusEl.textContent = 'Sending ONVIF WS-Discovery & mDNS multicast probes across subnets…';
+        statusEl.textContent = 'Sending ONVIF WS-Discovery, mDNS & VISCA probes across subnets…';
         resultsEl.innerHTML = '';
 
         try {
@@ -174,7 +287,7 @@
             statusEl.textContent = `Found ${cams.length} camera(s).`;
 
             if (cams.length === 0) {
-                resultsEl.innerHTML = '<div style="opacity:0.75; padding:10px 0;">No cameras replied yet. Try entering the camera IP or subnet (e.g. 192.168.100.4 or 192.168.100.0/24) above and click Scan Now.</div>';
+                resultsEl.innerHTML = '<div style="opacity:0.75; padding:10px 0;">No cameras replied yet. Try entering the camera IP or subnet (e.g. 192.168.100.120 or 192.168.100.0/24) above and click Scan Now.</div>';
                 return;
             }
 
@@ -183,7 +296,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                         <div>
                             <strong>${escapeHtml(cam.ip)}</strong>
-                            <span style="opacity:0.75; font-size:0.82rem; margin-left:8px;">${escapeHtml(cam.model)} ${cam.mac ? '• ' + escapeHtml(cam.mac) : ''}</span>
+                            <span style="opacity:0.75; font-size:0.82rem; margin-left:8px;">${escapeHtml(cam.model)} (port ${escapeHtml(cam.port || 1259)}) ${cam.mac ? '• ' + escapeHtml(cam.mac) : ''}</span>
                         </div>
                         <span style="font-size:0.75rem; padding:3px 8px; border-radius:6px; background:rgba(56,189,248,0.18); color:#7dd3fc;">
                             ${escapeHtml(cam.source)} ${cam.alreadyExists ? '• In DB' : '• New'}
@@ -213,7 +326,7 @@
                         <button type="button" class="nav-pill" data-apply-ip="${idx}" data-cur-ip="${escapeHtml(cam.ip)}" style="border-color:#f59e0b; color:#fde68a;">
                             Apply IP to Camera
                         </button>
-                        <button type="button" class="nav-pill" data-import-cam="${idx}" data-cur-ip="${escapeHtml(cam.ip)}" style="border-color:#22c55e; color:#86efac;">
+                        <button type="button" class="nav-pill" data-import-cam="${idx}" data-cur-ip="${escapeHtml(cam.ip)}" data-port="${escapeHtml(cam.port || 1259)}" style="border-color:#22c55e; color:#86efac;">
                             Add / Update in Panel DB
                         </button>
                     </div>
@@ -257,11 +370,12 @@
                     const idx = btn.getAttribute('data-import-cam');
                     const ip = document.getElementById(`ptz_newip_${idx}`).value.trim() || btn.dataset.curIp;
                     const title = document.getElementById(`ptz_title_${idx}`).value.trim();
+                    const port = parseInt(btn.dataset.port || '1259', 10) || 1259;
 
                     btn.disabled = true;
                     try {
                         await postJson('/panel/camera/import', {
-                            cameras: [{ ip: ip, title: title, port: 52381 }]
+                            cameras: [{ ip: ip, title: title, port: port }]
                         });
                         showToast(`Saved "${title}" (${ip}) to database`);
                         setTimeout(() => window.location.reload(), 900);

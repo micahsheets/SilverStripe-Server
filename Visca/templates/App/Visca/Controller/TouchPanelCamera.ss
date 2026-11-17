@@ -30,6 +30,83 @@
 <% end_if %>
     <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
     <style>
+        .cam-preview-card {
+            background: var(--card-bg, rgba(15, 23, 42, 0.78));
+            border: 1px solid var(--card-border, rgba(148, 163, 184, 0.22));
+            border-radius: 18px;
+            padding: 14px;
+            margin-bottom: 18px;
+        }
+        .cam-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .cam-preview-stage {
+            position: relative;
+            width: 100%;
+            max-width: 760px;
+            margin: 0 auto;
+            aspect-ratio: 16 / 9;
+            background: #020617;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cam-preview-stage img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .cam-preview-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(2, 6, 23, 0.78);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            color: #e2e8f0;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .cam-preview-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .cam-preview-msg {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 16px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+            background: rgba(2, 6, 23, 0.72);
+        }
+        .cam-preview-select {
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            color: #f8fafc;
+            padding: 6px 10px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
         .ptz-discover-modal {
             display: none;
             position: fixed;
@@ -107,12 +184,38 @@
                 <% end_loop %>
             </div>
             <% if $CanAccessDiscovery %>
-                <button type="button" id="btn-discover-ptz" class="nav-pill" style="border-color:#38bdf8;">Scan / Set PTZOptics IP</button>
+                <button type="button" id="btn-discover-ptz" class="nav-pill" style="border-color:#38bdf8;">Scan / Set Camera IP</button>
             <% end_if %>
         </div>
 
         <% if $Cameras %>
-            <div id="camera-device-tabs" class="device-tabs" style="margin-bottom:18px;"></div>
+            <div id="camera-device-tabs" class="device-tabs" style="margin-bottom:14px;"></div>
+
+            <div class="cam-preview-card" id="camPreviewCard">
+                <div class="cam-preview-header">
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <strong style="color:var(--cam-accent, #38bdf8); font-size:0.95rem;">Live Preview</strong>
+                        <select id="camPreviewSelect" class="cam-preview-select" aria-label="Select preview camera">
+                            <% loop $Cameras %>
+                                <option value="$ID" data-location-id="$LocationID">$Title ($IPAddress)</option>
+                            <% end_loop %>
+                        </select>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button type="button" id="btnCamPreviewToggle" class="nav-pill" style="padding:6px 12px; font-size:0.8rem;">Pause</button>
+                        <button type="button" id="btnCamPreviewRefresh" class="nav-pill" style="padding:6px 12px; font-size:0.8rem;">Refresh</button>
+                    </div>
+                </div>
+                <div class="cam-preview-stage">
+                    <img id="camPreviewImg" alt="Live camera preview">
+                    <div class="cam-preview-badge">
+                        <span class="cam-preview-dot" id="camPreviewDot"></span>
+                        <span id="camPreviewLabel">Connecting…</span>
+                    </div>
+                    <div class="cam-preview-msg" id="camPreviewMsg">Loading camera preview…</div>
+                </div>
+            </div>
+
             <div class="camera-grid">
                 <% loop $Cameras %>
                     <div class="cam-card" data-device-id="$ID" data-location-id="$LocationID">
@@ -152,7 +255,7 @@
             <div class="cam-card" style="text-align:center; padding:24px;">
                 <p style="margin:0 0 12px 0;">No active cameras configured yet.</p>
                 <% if $CanAccessDiscovery %>
-                    <button type="button" class="nav-pill" onclick="document.getElementById('btn-discover-ptz')?.click()">Scan Network for PTZOptics Move SE</button>
+                    <button type="button" class="nav-pill" onclick="document.getElementById('btn-discover-ptz')?.click()">Scan Network for Cameras</button>
                 <% end_if %>
             </div>
         <% end_if %>
@@ -164,14 +267,14 @@
     <div class="ptz-discover-box">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
             <div>
-                <h3 style="margin:0; font-size:1.1rem;">PTZOptics Cross-Subnet Discovery & IP Setup</h3>
-                <div style="font-size:0.8rem; opacity:0.75;">Finds Move SE cameras across subnets (e.g. 192.168.100.4) via ONVIF / mDNS multicast</div>
+                <h3 style="margin:0; font-size:1.1rem;">PTZ Camera Cross-Subnet Discovery & IP Setup</h3>
+                <div style="font-size:0.8rem; opacity:0.75;">Finds PTZOptics, AIDA Imaging, and OBSBOT cameras across subnets via ONVIF / mDNS / VISCA</div>
             </div>
             <button type="button" id="btn-close-ptz-modal" class="nav-pill">Close</button>
         </div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-            <input type="text" id="ptzSubnetInput" placeholder="Optional IP or CIDR (e.g. 192.168.100.4 or 192.168.100.0/24)" style="flex:1; min-width:220px; background:rgba(15,23,42,0.9); border:1px solid rgba(148,163,184,0.35); color:#f8fafc; padding:10px 12px; border-radius:10px;">
+            <input type="text" id="ptzSubnetInput" placeholder="Optional IP or CIDR (e.g. 192.168.100.120 or 192.168.100.0/24)" style="flex:1; min-width:220px; background:rgba(15,23,42,0.9); border:1px solid rgba(148,163,184,0.35); color:#f8fafc; padding:10px 12px; border-radius:10px;">
             <button type="button" id="btn-run-ptz-scan" class="nav-pill" style="background:#38bdf8; color:#0f172a; font-weight:800;">Scan Now</button>
         </div>
 
