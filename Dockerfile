@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     unzip \
     git \
+    iproute2 \
+    sudo \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j$(nproc) \
         intl \
@@ -37,3 +39,6 @@ RUN { \
     } > /usr/local/etc/php/conf.d/silverstripe-prod.ini
 
 COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+
+RUN echo 'www-data ALL=(root) NOPASSWD: /usr/sbin/ip, /sbin/ip' > /etc/sudoers.d/av-panel-ip \
+    && chmod 0440 /etc/sudoers.d/av-panel-ip
