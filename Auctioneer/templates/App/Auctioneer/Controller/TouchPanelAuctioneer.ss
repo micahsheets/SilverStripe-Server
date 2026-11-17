@@ -137,7 +137,7 @@
                 <div class="auc-station-sub" id="aucStationSub"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle · <% end_if %>DTX Microphone Channel</div>
             </div>
         </div>
-        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+        <div id="aucTopbarActions" style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
             <button type="button" class="auc-btn" onclick="openStationModal()">Lane / Mic</button>
             <button type="button" class="auc-btn" onclick="openAddAuctioneerModal()">+ User</button>
         </div>

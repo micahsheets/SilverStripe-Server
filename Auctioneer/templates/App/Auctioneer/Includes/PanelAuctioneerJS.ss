@@ -66,6 +66,7 @@ function setStation(station) {
     document.getElementById('aucStationTitle').textContent = station.laneTitle + ' · ' + station.title;
     document.getElementById('aucStationSub').textContent = station.dtxTitle + ' · Mic Input ' + station.dtxChannel;
 
+    const topbarActions = document.getElementById('aucTopbarActions');
     const loginView = document.getElementById('aucLoginView');
     const activeHeaderCard = document.getElementById('aucActiveHeaderCard');
     const splashView = document.getElementById('aucSplashActiveView');
@@ -81,6 +82,7 @@ function setStation(station) {
         syncSlidersFromSettings(aucState.liveSettings);
 
         loginView.style.display = 'none';
+        topbarActions.style.display = canEdit ? 'flex' : 'none';
         if (canEdit) {
             splashView.style.display = 'none';
             editView.style.display = 'flex';
@@ -91,6 +93,7 @@ function setStation(station) {
         }
     } else {
         aucState.liveSettings = null;
+        topbarActions.style.display = 'flex';
         activeHeaderCard.style.display = 'none';
         splashView.style.display = 'none';
         editView.style.display = 'none';
