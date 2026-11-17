@@ -75,15 +75,34 @@ class SystemUpdateAdmin extends LeftAndMain
             }
         }
 
-        // 3. Extract patch into BASE_PATH
-        $extractOk = $zip->extractTo(BASE_PATH);
-        $zip->close();
-
-        if (!$extractOk) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Failed to extract files (check www-data ownership on project directory)'], 500);
+        // 3. Extract entry-by-entry so we get exact diagnostics if any file is unwritable
+        $written = 0;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entry = $zip->getNameIndex($i);
+            if ($entry === 'manifest.json') {
+                continue;
+            }
+            $dest = BASE_PATH . '/' . $entry;
+            if (str_ends_with($entry, '/')) {
+                if (!is_dir($dest) && !@mkdir($dest, 0775, true)) {
+                    $zip->close();
+                    return $this->jsonResponse(['success' => false, 'error' => "Cannot create directory: {$entry}"], 500);
+                }
+                continue;
+            }
+            $parentDir = dirname($dest);
+            if (!is_dir($parentDir) && !@mkdir($parentDir, 0775, true)) {
+                $zip->close();
+                return $this->jsonResponse(['success' => false, 'error' => "Cannot create parent directory for: {$entry}"], 500);
+            }
+            $contents = $zip->getFromIndex($i);
+            if ($contents === false || @file_put_contents($dest, $contents) === false) {
+                $zip->close();
+                return $this->jsonResponse(['success' => false, 'error' => "Permission denied writing: {$entry} (run chown/chmod for www-data on Pi)"], 500);
+            }
+            $written++;
         }
-
-        @unlink(BASE_PATH . '/manifest.json');
+        $zip->close();
 
         // 4. Flush cache and rebuild database schema
         $cmd = sprintf(
@@ -94,10 +113,11 @@ class SystemUpdateAdmin extends LeftAndMain
         exec($cmd, $output, $exitCode);
 
         return $this->jsonResponse([
-            'success'     => $exitCode === 0,
-            'version'     => $manifest['version'] ?? 'unknown',
-            'modules'     => $manifest['modules'] ?? [],
-            'buildOutput' => implode("\n", $output),
+            'success'      => $exitCode === 0,
+            'version'      => $manifest['version'] ?? 'unknown',
+            'modules'      => $manifest['modules'] ?? [],
+            'filesWritten' => $written,
+            'buildOutput'  => implode("\n", $output),
         ], $exitCode === 0 ? 200 : 500);
     }
 
