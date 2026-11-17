@@ -15,7 +15,7 @@ class AuctionPanelStation extends DataObject
     private static string $table_name = 'AuctionPanelStation';
     private static string $singular_name = 'Lane Touch Panel';
     private static string $plural_name = 'Lane Touch Panels';
-    private static string $default_sort = 'SortOrder ASC, DTXChannel ASC';
+    private static string $default_sort = 'SortOrder ASC, Title ASC, DTXChannel ASC';
 
     private static array $db = [
         'Title'          => 'Varchar(100)',
@@ -27,6 +27,7 @@ class AuctionPanelStation extends DataObject
 
     private static array $defaults = [
         'DTXChannel' => 1,
+        'SortOrder'  => 0,
     ];
 
     private static array $has_one = [

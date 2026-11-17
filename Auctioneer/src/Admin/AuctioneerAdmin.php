@@ -8,8 +8,11 @@ use App\Auctioneer\Model\AuctionPanelStation;
 use App\DTX\Model\DTXDevice;
 use App\Model\PanelSettings;
 use SilverStripe\Admin\ModelAdmin;
+use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Forms\FormAction;
+use SilverStripe\Forms\LiteralField;
+use SilverStripe\Security\SecurityToken;
 
 class AuctioneerAdmin extends ModelAdmin
 {
@@ -23,6 +26,10 @@ class AuctioneerAdmin extends ModelAdmin
     private static string $menu_title = 'Auctioneer Mics';
     private static string $menu_icon_class = 'font-icon-torsos-all';
     private static int $menu_priority = 85;
+
+    private static array $allowed_actions = [
+        'reorderstations',
+    ];
 
     public function canView($member = null)
     {
@@ -43,7 +50,87 @@ class AuctioneerAdmin extends ModelAdmin
             );
         }
 
+        if ($this->modelClass === AuctionPanelStation::class) {
+            $csrf = SecurityToken::inst()->getValue();
+            $form->Fields()->push(LiteralField::create('StationDragSortScript', <<<HTML
+<style>
+.grid-field__table tbody tr[data-id] { cursor: grab; }
+.grid-field__table tbody tr.auc-dragging { opacity: 0.45; background: rgba(37, 99, 235, 0.14); }
+.grid-field__table tbody tr.auc-drag-over { border-top: 2px solid #2563eb; }
+</style>
+<script>
+(function() {
+    function bindStationDragSort() {
+        var tbody = document.querySelector('.grid-field__table tbody');
+        if (!tbody || tbody.dataset.dragBound === '1') return;
+        tbody.dataset.dragBound = '1';
+        var dragged = null;
+
+        tbody.querySelectorAll('tr[data-id]').forEach(function(row) {
+            row.setAttribute('draggable', 'true');
+            row.addEventListener('dragstart', function(e) {
+                dragged = row;
+                row.classList.add('auc-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            row.addEventListener('dragend', function() {
+                row.classList.remove('auc-dragging');
+                tbody.querySelectorAll('tr').forEach(function(r) { r.classList.remove('auc-drag-over'); });
+                var ids = Array.from(tbody.querySelectorAll('tr[data-id]')).map(function(r) { return Number(r.dataset.id); });
+                fetch('/admin/auctioneers/reorderstations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-SecurityID': '{$csrf}' },
+                    body: JSON.stringify({ ids: ids })
+                });
+            });
+            row.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                if (!dragged || dragged === row) return;
+                row.classList.add('auc-drag-over');
+            });
+            row.addEventListener('dragleave', function() {
+                row.classList.remove('auc-drag-over');
+            });
+            row.addEventListener('drop', function(e) {
+                e.preventDefault();
+                row.classList.remove('auc-drag-over');
+                if (!dragged || dragged === row) return;
+                var rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
+                if (rows.indexOf(dragged) < rows.indexOf(row)) {
+                    row.after(dragged);
+                } else {
+                    row.before(dragged);
+                }
+            });
+        });
+    }
+    bindStationDragSort();
+    setInterval(bindStationDragSort, 800);
+})();
+</script>
+HTML
+            ));
+        }
+
         return $form;
+    }
+
+    public function reorderstations(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return HTTPResponse::create('Method Not Allowed', 405);
+        }
+        $payload = json_decode((string) $request->getBody(), true);
+        $ids = is_array($payload['ids'] ?? null) ? $payload['ids'] : [];
+        foreach ($ids as $index => $id) {
+            $station = AuctionPanelStation::get()->byID((int) $id);
+            if ($station) {
+                $station->SortOrder = ($index + 1) * 10;
+                $station->write();
+            }
+        }
+        return HTTPResponse::create(json_encode(['success' => true]), 200)
+            ->addHeader('Content-Type', 'application/json');
     }
 
     public function doSeedLanes($data, $form): HTTPResponse
@@ -66,7 +153,7 @@ class AuctioneerAdmin extends ModelAdmin
                     'LaneID'     => $lane->ID,
                     'Title'      => "Block Mic {$ch}",
                     'DTXChannel' => $ch,
-                    'SortOrder'  => $ch,
+                    'SortOrder'  => 0,
                 ])->write();
             }
         }
