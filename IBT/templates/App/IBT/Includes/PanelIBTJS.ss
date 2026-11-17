@@ -160,11 +160,13 @@ function selectAllIbtDisplays() {
     ibtState.decoders.filter(d => ibtState.activeLocationId === 0 || d.locationId === ibtState.activeLocationId)
         .forEach(d => ibtState.selectedDecoderIds.add(d.id));
     renderIbtDecoders();
+    renderIbtEncoders();
 }
 
 function clearIbtDisplays() {
     ibtState.selectedDecoderIds.clear();
     renderIbtDecoders();
+    renderIbtEncoders();
 }
 
 async function powerAllIbtDisplays(turnOn) {
@@ -236,6 +238,7 @@ function renderIbtDecoders() {
         card.onclick = () => {
             ibtState.selectedDecoderIds.has(dec.id) ? ibtState.selectedDecoderIds.delete(dec.id) : ibtState.selectedDecoderIds.add(dec.id);
             renderIbtDecoders();
+            renderIbtEncoders();
         };
         const header = document.createElement('div');
         header.className = 'device-header-row';
@@ -290,10 +293,18 @@ function renderIbtEncoders() {
         c.innerHTML = '<div style="opacity:0.75; padding:12px;">No IBT-1-BX Transmitters configured yet.</div>';
         return;
     }
+    let activeEncoderId = 0;
+    if (ibtState.selectedDecoderIds.size === 1) {
+        const selId = Array.from(ibtState.selectedDecoderIds)[0];
+        const selDec = ibtState.decoders.find(d => d.id === selId);
+        if (selDec) activeEncoderId = selDec.videoEncoderId || 0;
+    }
     list.forEach(enc => {
-        const card = document.createElement('div');
-        card.className = 'encoder-card';
-        card.onclick = () => routeIbtToSelected(enc.id, enc.title);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'encoder-btn' + (activeEncoderId === enc.id ? ' active-for-selected' : '');
+        btn.onclick = () => routeIbtToSelected(enc.id, enc.title);
+
         const header = document.createElement('div');
         header.className = 'device-header-row';
         const room = document.createElement('div');
@@ -303,11 +314,13 @@ function renderIbtEncoders() {
 
         const name = document.createElement('div');
         name.className = 'device-name';
+        name.style.margin = '4px 0 0 0';
         name.textContent = enc.title;
-        card.append(header, name);
+
+        btn.append(header, name);
         const sRow = createIbtSerialRow(enc);
-        if (sRow) card.appendChild(sRow);
-        c.appendChild(card);
+        if (sRow) btn.appendChild(sRow);
+        c.appendChild(btn);
     });
 }
 

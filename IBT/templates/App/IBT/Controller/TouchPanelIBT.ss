@@ -31,6 +31,7 @@
 </style>
 <% end_if %>
     <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <% include App\VPX\Includes\VPXPreviewCSS %>
     <style>
         .ibt-modal-backdrop { position:fixed; inset:0; background:rgba(2,6,23,0.78); z-index:9999; display:none; align-items:center; justify-content:center; padding:16px; }
         .ibt-modal-backdrop.open { display:flex; }
