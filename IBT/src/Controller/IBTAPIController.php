@@ -21,7 +21,7 @@ class IBTAPIController extends Controller
 {
     private static string $url_segment = 'api/ibt';
 
-    private static array $allowed_actions = ['status', 'route', 'preset', 'command', 'ping', 'discover', 'import'];
+    private static array $allowed_actions = ['status', 'route', 'preset', 'command', 'ping', 'discover', 'import', 'preview'];
 
     private IBTControlService $controlService;
 
@@ -39,6 +39,12 @@ class IBTAPIController extends Controller
         if (!PanelSecurityGuard::isIPAllowed($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'IP not allowed.'], 403));
         }
+
+        $action = strtolower((string) $request->param('Action'));
+        if ($action === 'preview') {
+            return;
+        }
+
         if (!PanelSecurityGuard::isAuthenticated($request)) {
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Auth required.'], 401));
         }
@@ -46,7 +52,6 @@ class IBTAPIController extends Controller
             throw new HTTPResponse_Exception($this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403));
         }
 
-        $action = strtolower((string) $request->param('Action'));
         $requiredPermission = in_array($action, ['discover', 'import'], true)
             ? PanelPermissionProvider::PERM_ACCESS_DISCOVERY
             : IBTController::PERM_ACCESS;
@@ -197,6 +202,40 @@ class IBTAPIController extends Controller
         } catch (Throwable $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    public function preview(HTTPRequest $request): HTTPResponse
+    {
+        $device = IBTDevice::get()->byID((int) $request->param('ID'));
+        if (!$device || !filter_var($device->IPAddress, FILTER_VALIDATE_IP)) {
+            return HTTPResponse::create('', 404);
+        }
+
+        $ip = trim((string) $device->IPAddress);
+        $port = (int) (getenv('IBT_PREVIEW_PORT') ?: getenv('VPX_PREVIEW_PORT') ?: 8080);
+
+        $fp = @fsockopen($ip, $port, $errno, $errstr, 0.4);
+        if (!is_resource($fp)) {
+            return HTTPResponse::create('', 204);
+        }
+
+        stream_set_timeout($fp, 0, 500_000);
+        fwrite($fp, "GET /?action=snapshot HTTP/1.0\r\nHost: {$ip}:{$port}\r\n\r\n");
+        $raw = stream_get_contents($fp, 524288);
+        fclose($fp);
+
+        if (!$raw || !preg_match('/^HTTP\/1\.[01]\s+200\b/i', $raw) || !str_contains($raw, "\r\n\r\n")) {
+            return HTTPResponse::create('', 204);
+        }
+
+        [, $jpeg] = explode("\r\n\r\n", $raw, 2);
+        if (!str_starts_with($jpeg, "\xFF\xD8")) {
+            return HTTPResponse::create('', 204);
+        }
+
+        return HTTPResponse::create($jpeg, 200)
+            ->addHeader('Content-Type', 'image/jpeg')
+            ->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     private function parseRequestData(HTTPRequest $request): array

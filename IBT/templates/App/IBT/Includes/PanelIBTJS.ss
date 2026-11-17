@@ -1,4 +1,5 @@
 <script>
+const ibtPreviewFrameCache = new Map();
 const ibtState = {
     csrfToken: '',
     locations: [],
@@ -90,6 +91,45 @@ function createIbtPingBadge(deviceId) {
     lbl.textContent = st === true ? 'ONLINE' : (st === false ? 'OFFLINE' : '...');
     badge.append(dot, lbl);
     return badge;
+}
+
+function loadIbtPreviewFrame(img, deviceId) {
+    if (!deviceId) return;
+    const url = '/api/ibt/preview/' + deviceId + '?t=' + Date.now();
+    const preloader = new Image();
+    preloader.onload = () => {
+        ibtPreviewFrameCache.set(deviceId, preloader.src);
+        if (img.isConnected) {
+            img.src = preloader.src;
+            img.classList.add('is-loaded');
+        }
+    };
+    preloader.onerror = () => {
+        if (img.isConnected && !ibtPreviewFrameCache.has(deviceId)) {
+            img.classList.remove('is-loaded');
+        }
+    };
+    preloader.src = url;
+}
+
+function createIbtPreviewBox(deviceId, deviceTitle) {
+    const wrap = document.createElement('div');
+    wrap.className = 'vpx-preview-wrap';
+    const img = document.createElement('img');
+    img.className = 'vpx-preview-img';
+    img.dataset.deviceId = String(deviceId);
+    img.alt = (deviceTitle || 'Device') + ' live preview';
+    if (ibtPreviewFrameCache.has(deviceId)) {
+        img.src = ibtPreviewFrameCache.get(deviceId);
+        img.classList.add('is-loaded');
+    } else {
+        loadIbtPreviewFrame(img, deviceId);
+    }
+    const placeholder = document.createElement('span');
+    placeholder.className = 'vpx-preview-placeholder';
+    placeholder.textContent = ibtState.onlineMap[deviceId] === false ? 'Offline' : 'No Signal';
+    wrap.append(img, placeholder);
+    return wrap;
 }
 
 function createIbtSerialRow(device) {
@@ -240,6 +280,9 @@ function renderIbtDecoders() {
             renderIbtDecoders();
             renderIbtEncoders();
         };
+
+        const previewBox = createIbtPreviewBox(dec.id, dec.title);
+
         const header = document.createElement('div');
         header.className = 'device-header-row';
         const room = document.createElement('div');
@@ -278,7 +321,7 @@ function renderIbtDecoders() {
         discBtn.onclick = (e) => { e.stopPropagation(); disconnectIbtDecoder(dec.id, dec.title); };
         cecRow.append(onBtn, offBtn, discBtn);
 
-        card.append(header, name, badges, cecRow);
+        card.append(previewBox, header, name, badges, cecRow);
         const sRow = createIbtSerialRow(dec);
         if (sRow) card.appendChild(sRow);
         c.appendChild(card);
@@ -305,6 +348,8 @@ function renderIbtEncoders() {
         btn.className = 'encoder-btn' + (activeEncoderId === enc.id ? ' active-for-selected' : '');
         btn.onclick = () => routeIbtToSelected(enc.id, enc.title);
 
+        const previewBox = createIbtPreviewBox(enc.id, enc.title);
+
         const header = document.createElement('div');
         header.className = 'device-header-row';
         const room = document.createElement('div');
@@ -317,7 +362,7 @@ function renderIbtEncoders() {
         name.style.margin = '4px 0 0 0';
         name.textContent = enc.title;
 
-        btn.append(header, name);
+        btn.append(previewBox, header, name);
         const sRow = createIbtSerialRow(enc);
         if (sRow) btn.appendChild(sRow);
         c.appendChild(btn);
@@ -330,6 +375,15 @@ function renderIbt() {
     renderIbtPresets();
     renderIbtDecoders();
     renderIbtEncoders();
+}
+
+function refreshAllIbtPreviews() {
+    if (document.hidden) return;
+    document.querySelectorAll('img.vpx-preview-img').forEach((img, idx) => {
+        const deviceId = Number(img.dataset.deviceId);
+        if (!deviceId) return;
+        setTimeout(() => loadIbtPreviewFrame(img, deviceId), idx * 150);
+    });
 }
 
 function openIbtDiscoverModal() { document.getElementById('ibtDiscoverModal').classList.add('open'); }
@@ -390,7 +444,8 @@ async function importIbtSelected() {
     } else { showIbtToast(data.error || 'Import failed', true); }
 }
 
-loadIbtStatus();
-loadIbtPing();
+loadIbtStatus().then(() => loadIbtPing());
+setInterval(loadIbtStatus, 10000);
 setInterval(loadIbtPing, 15000);
+setInterval(refreshAllIbtPreviews, 3000);
 </script>
