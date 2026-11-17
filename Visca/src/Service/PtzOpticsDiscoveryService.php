@@ -510,6 +510,39 @@ class PtzOpticsDiscoveryService
         string $password
     ): bool {
         $dhcpFlag = $dhcp ? '1' : '0';
+        $postFields = http_build_query([
+            'dhcp'    => $dhcpFlag,
+            'ipaddr'  => $newIp,
+            'netmask' => $netmask,
+            'gateway' => $gateway,
+            'fdns'    => '8.8.8.8',
+        ]);
+
+        // 1. PTZOptics Move SE / lighttpd firmware endpoint (POST /cgi-bin/param.cgi?post_network_info_conf)
+        $ch = curl_init("http://{$currentIp}/cgi-bin/param.cgi?post_network_info_conf");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $postFields,
+            CURLOPT_HTTPAUTH       => CURLAUTH_ANY,
+            CURLOPT_USERPWD        => "{$username}:{$password}",
+            CURLOPT_TIMEOUT        => 3,
+            CURLOPT_CONNECTTIMEOUT => 2,
+        ]);
+        $resp = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code === 200 && $resp !== false && stripos((string) $resp, '404') === false) {
+            // Trigger reboot so the lighttpd/network service applies the new static IP
+            $rebRes = $this->sendOnvifSoap($currentIp, '<tds:SystemReboot/>', $username, $password);
+            if (!$rebRes['ok']) {
+                $this->sendOnvifSoap($currentIp, '<tds:SystemReboot/>', '', '');
+            }
+            return true;
+        }
+
+        // 2. Fallback for older HiSilicon / AIDA CGI endpoints
         $urls = [
             "http://{$currentIp}/cgi-bin/param.cgi?action=set_net_conf&dhcp={$dhcpFlag}&ipaddr={$newIp}&netmask={$netmask}&gateway={$gateway}",
             "http://{$currentIp}/cgi-bin/network.cgi?dhcp={$dhcpFlag}&ip={$newIp}&mask={$netmask}&gateway={$gateway}",
