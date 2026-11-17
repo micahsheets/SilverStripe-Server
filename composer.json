@@ -54,7 +54,8 @@
             "App\\P300\\": "P300/src/",
             "App\\AHM\\": "AHM/src/",
             "App\\": "app/src/",
-            "App\\IBT\\": "IBT/src/"
+            "App\\IBT\\": "IBT/src/",
+            "App\\Auctioneer\\": "Auctioneer/src/"
         }
     }
 }

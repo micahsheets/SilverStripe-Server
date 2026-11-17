@@ -1,0 +1,8 @@
+---
+Name: module-auctioneer
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/auctioneer//$Action/$ID': 'App\Auctioneer\Controller\AuctioneerController'
+    'api/auctioneer//$Action/$ID': 'App\Auctioneer\Controller\AuctioneerAPIController'
