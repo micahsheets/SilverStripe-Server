@@ -66,8 +66,8 @@ function setStation(station) {
     document.getElementById('aucStationTitle').textContent = station.laneTitle + ' · ' + station.title;
     document.getElementById('aucStationSub').textContent = station.dtxTitle + ' · Mic Input ' + station.dtxChannel;
 
-    const topbar = document.getElementById('aucTopbar');
     const loginView = document.getElementById('aucLoginView');
+    const activeHeaderCard = document.getElementById('aucActiveHeaderCard');
     const splashView = document.getElementById('aucSplashActiveView');
     const editView = document.getElementById('aucActiveView');
 
@@ -75,25 +75,23 @@ function setStation(station) {
         aucState.liveSettings = JSON.parse(JSON.stringify(station.auctioneer.settings));
         const canEdit = !!station.auctioneer.canEditSettings;
 
+        activeHeaderCard.style.display = 'flex';
+        document.getElementById('aucActiveName').textContent = station.auctioneer.title;
+        document.getElementById('aucActiveRoleLabel').textContent = canEdit ? 'ACTIVE AUCTIONEER (EDIT MODE)' : 'ACTIVE AUCTIONEER';
+        syncSlidersFromSettings(aucState.liveSettings);
+
+        loginView.style.display = 'none';
         if (canEdit) {
-            topbar.style.display = 'flex';
-            loginView.style.display = 'none';
             splashView.style.display = 'none';
-            document.getElementById('aucActiveName').textContent = station.auctioneer.title;
-            syncSlidersFromSettings(aucState.liveSettings);
             editView.style.display = 'flex';
         } else {
-            // Full-screen splash view with only Logo, Title, Active User, and Log Out button
-            topbar.style.display = 'none';
-            loginView.style.display = 'none';
             editView.style.display = 'none';
-            document.getElementById('aucSplashUserName').textContent = station.auctioneer.title;
             document.getElementById('aucSplashLaneInfo').textContent = `${station.laneTitle} · ${station.title} (Mic ${station.dtxChannel})`;
             splashView.style.display = 'flex';
         }
     } else {
         aucState.liveSettings = null;
-        topbar.style.display = 'flex';
+        activeHeaderCard.style.display = 'none';
         splashView.style.display = 'none';
         editView.style.display = 'none';
         loginView.style.display = 'flex';

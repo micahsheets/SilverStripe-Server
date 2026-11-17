@@ -56,7 +56,7 @@
         .auc-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .auc-page-label { font-size: 0.88rem; font-weight: 600; opacity: 0.85; }
 
-        /* Full-Screen Splash View for Standard Auctioneers (CanEditSettings = 0) */
+        /* Splash Center Area for Standard Auctioneers (CanEditSettings = 0) */
         .auc-splash-screen {
             flex: 1;
             display: none;
@@ -64,39 +64,32 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 16px;
-            gap: 14px;
+            padding: 12px;
+            gap: 12px;
         }
         .auc-splash-logo {
-            max-width: 240px;
-            max-height: 110px;
+            max-width: 220px;
+            max-height: 96px;
             width: auto;
             height: auto;
             object-fit: contain;
         }
         .auc-splash-title {
-            font-size: 1.5rem;
+            font-size: 1.35rem;
             font-weight: 800;
             letter-spacing: 0.02em;
             margin: 0;
         }
-        .auc-splash-user {
-            font-size: 1.35rem;
-            font-weight: 700;
-            color: #4ade80;
-            margin: 0;
-        }
-        body[data-theme="light"] .auc-splash-user { color: #16a34a; }
         .auc-splash-lane {
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             opacity: 0.82;
             margin: 0;
         }
         .auc-splash-logout-btn {
-            margin-top: 8px;
+            margin-top: 6px;
             min-width: 220px;
-            padding: 16px 28px;
-            font-size: 1.15rem;
+            padding: 15px 28px;
+            font-size: 1.1rem;
             font-weight: 700;
             border-radius: 999px;
             background: #dc2626;
@@ -165,27 +158,27 @@
         </div>
     </section>
 
+    <!-- ACTIVE AUCTIONEER STATUS & MIC LIVE / MUTE BAR (Visible for all logged-in users) -->
+    <div class="auc-card" id="aucActiveHeaderCard" style="display:none; justify-content:space-between; align-items:center; gap:8px;">
+        <div>
+            <div style="font-size:0.75rem; opacity:0.75;" id="aucActiveRoleLabel">ACTIVE AUCTIONEER</div>
+            <div style="font-size:1.15rem; font-weight:800;" id="aucActiveName">-</div>
+        </div>
+        <button type="button" class="auc-btn success" id="aucMuteBtn" onclick="toggleAucMute()">MIC LIVE</button>
+    </div>
+
     <!-- VIEW 2A: Splash-Style Active View for Standard Auctioneers (CanEditSettings = 0) -->
     <section id="aucSplashActiveView" class="auc-splash-screen">
         <% if $PanelSettings.PanelLogo.exists %>
             <img src="$PanelSettings.PanelLogo.ScaleWidth(360).URL" alt="Facility Logo" class="auc-splash-logo">
         <% end_if %>
         <h1 class="auc-splash-title"><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>Auctioneer Mic Active<% end_if %></h1>
-        <p class="auc-splash-user" id="aucSplashUserName">-</p>
         <p class="auc-splash-lane" id="aucSplashLaneInfo">Lane 01 · Mic Input 1</p>
         <button type="button" class="auc-splash-logout-btn" onclick="logoutAuctioneer()">Log Out</button>
     </section>
 
     <!-- VIEW 2B: Full DSP Control & Cross-Lane Save View for Authorized Users (CanEditSettings = 1) -->
     <section id="aucActiveView" class="auc-dsp-panel" style="display:none;">
-        <div class="auc-card" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-            <div>
-                <div style="font-size:0.75rem; opacity:0.75;">ACTIVE AUCTIONEER (EDIT MODE)</div>
-                <div style="font-size:1.15rem; font-weight:800;" id="aucActiveName">-</div>
-            </div>
-            <button type="button" class="auc-btn" id="aucMuteBtn" onclick="toggleAucMute()">MIC LIVE</button>
-        </div>
-
         <div class="auc-card">
             <div class="auc-slider-row">
                 <div class="auc-slider-head"><span>Mic Preamp Sensitivity</span><span id="lblSens">+30 dB</span></div>
