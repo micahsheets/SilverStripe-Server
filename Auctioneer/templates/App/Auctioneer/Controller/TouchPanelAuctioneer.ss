@@ -56,49 +56,11 @@
         .auc-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .auc-page-label { font-size: 0.88rem; font-weight: 600; opacity: 0.85; }
 
-        /* Splash Center Area for Standard Auctioneers (CanEditSettings = 0) */
-        .auc-splash-screen {
-            flex: 1;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 12px;
-            gap: 12px;
-        }
-        .auc-splash-logo {
-            max-width: 220px;
-            max-height: 96px;
-            width: auto;
-            height: auto;
-            object-fit: contain;
-        }
-        .auc-splash-title {
-            font-size: 1.35rem;
-            font-weight: 800;
-            letter-spacing: 0.02em;
-            margin: 0;
-        }
-        .auc-splash-lane {
-            font-size: 0.92rem;
-            opacity: 0.82;
-            margin: 0;
-        }
-        .auc-splash-logout-btn {
-            margin-top: 6px;
-            min-width: 220px;
-            padding: 15px 28px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            border-radius: 999px;
-            background: #dc2626;
-            border: 1px solid #ef4444;
-            color: #ffffff;
-            cursor: pointer;
-            touch-action: manipulation;
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-        }
+        .auc-splash-screen { flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 12px; gap: 12px; }
+        .auc-splash-logo { max-width: 220px; max-height: 96px; width: auto; height: auto; object-fit: contain; }
+        .auc-splash-title { font-size: 1.35rem; font-weight: 800; letter-spacing: 0.02em; margin: 0; }
+        .auc-splash-lane { font-size: 0.92rem; opacity: 0.82; margin: 0; }
+        .auc-splash-logout-btn { margin-top: 6px; min-width: 220px; padding: 15px 28px; font-size: 1.1rem; font-weight: 700; border-radius: 999px; background: #dc2626; border: 1px solid #ef4444; color: #ffffff; cursor: pointer; touch-action: manipulation; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
         .auc-splash-logout-btn:active { transform: scale(0.98); }
 
         .auc-modal { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.86); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 12px; }
@@ -117,10 +79,19 @@
         body[data-theme="light"] .auc-card { background: rgba(255, 255, 255, 0.92); }
         .auc-slider-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
         .auc-slider-head { display: flex; justify-content: space-between; font-size: 0.86rem; font-weight: 600; }
-        .auc-slider-row input[type="range"] { width: 100%; height: 30px; }
+        .auc-slider-row input[type="range"] { width: 100%; height: 28px; }
+        .auc-eq-graph-wrap { width: 100%; height: 150px; border-radius: 10px; overflow: hidden; background: #090e1a; border: 1px solid rgba(148, 163, 184, 0.3); margin-bottom: 8px; }
+        #peqCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
+        .auc-band-pills { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 8px; }
+        .auc-band-pill { padding: 7px 0; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.35); background: rgba(30, 41, 59, 0.7); color: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; text-align: center; touch-action: manipulation; }
+        body[data-theme="light"] .auc-band-pill { background: #e2e8f0; }
+        .auc-band-pill.active { background: #2563eb; border-color: #60a5fa; color: #fff; }
+        .auc-band-pill.disabled-band { opacity: 0.45; }
+        .auc-band-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
         .auc-eq-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        @media (max-width: 520px) { .auc-eq-grid { grid-template-columns: 1fr; } }
         .auc-action-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; }
-        .auc-input, .auc-select { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.5); color: inherit; font-size: 0.96rem; }
+        .auc-input, .auc-select { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.5); color: inherit; font-size: 0.92rem; }
         body[data-theme="light"] .auc-input, body[data-theme="light"] .auc-select { background: #f8fafc; }
     </style>
 </head>
@@ -158,7 +129,7 @@
         </div>
     </section>
 
-    <!-- ACTIVE AUCTIONEER STATUS & MIC LIVE / MUTE BAR (Visible for all logged-in users) -->
+    <!-- ACTIVE AUCTIONEER STATUS & MIC LIVE / MUTE BAR -->
     <div class="auc-card" id="aucActiveHeaderCard" style="display:none; justify-content:space-between; align-items:center; gap:8px;">
         <div>
             <div style="font-size:0.75rem; opacity:0.75;" id="aucActiveRoleLabel">ACTIVE AUCTIONEER</div>
@@ -177,7 +148,7 @@
         <button type="button" class="auc-splash-logout-btn" onclick="logoutAuctioneer()">Log Out</button>
     </section>
 
-    <!-- VIEW 2B: Full DSP Control & Cross-Lane Save View for Authorized Users (CanEditSettings = 1) -->
+    <!-- VIEW 2B: Full DSP Control & DASH-Style 8-Band PEQ Editor (CanEditSettings = 1) -->
     <section id="aucActiveView" class="auc-dsp-panel" style="display:none;">
         <div class="auc-card">
             <div class="auc-slider-row">
@@ -192,23 +163,47 @@
 
         <div class="auc-card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                <span style="font-size:0.8rem; font-weight:700; opacity:0.85;">PARAMETRIC EQ (LOW / MID / HIGH)</span>
+                <span style="font-size:0.82rem; font-weight:700; opacity:0.9;">8-BAND PARAMETRIC EQ</span>
                 <label style="font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:6px;">
-                    <input type="checkbox" id="chkPeq" checked onchange="onDspSliderInput()"> On
+                    <input type="checkbox" id="chkPeq" checked onchange="onDspSliderInput()"> PEQ Master On
                 </label>
             </div>
+
+            <!-- Interactive DASH-style Frequency Response Graph -->
+            <div class="auc-eq-graph-wrap">
+                <canvas id="peqCanvas"></canvas>
+            </div>
+
+            <!-- Band 1 - 8 Selector Pills -->
+            <div class="auc-band-pills" id="aucBandPills"></div>
+
+            <!-- Selected Band Enable & Filter Type -->
+            <div class="auc-band-meta">
+                <label style="font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                    <input type="checkbox" id="chkBandEnable" checked onchange="onBandParamInput()"> Band <span id="lblBandNum">1</span> On
+                </label>
+                <select id="selBandType" class="auc-select" onchange="onBandParamInput()">
+                    <option value="6">Parametric (Peaking)</option>
+                    <option value="2">Low Shelf</option>
+                    <option value="3">High Shelf</option>
+                    <option value="4">Low Pass (LPF)</option>
+                    <option value="5">High Pass (HPF)</option>
+                </select>
+            </div>
+
+            <!-- Selected Band Frequency, Gain, and Q Sliders -->
             <div class="auc-eq-grid">
                 <div class="auc-slider-row" style="margin-bottom:0;">
-                    <div class="auc-slider-head"><span>125 Hz</span><span id="lblEqLow">0.0</span></div>
-                    <input type="range" id="rngEqLow" min="-24" max="18" step="0.5" value="0" oninput="onDspSliderInput()">
+                    <div class="auc-slider-head"><span>Freq</span><span id="lblBandFreq">125 Hz</span></div>
+                    <input type="range" id="rngBandFreq" min="0" max="1000" step="1" value="265" oninput="onBandParamInput()">
                 </div>
                 <div class="auc-slider-row" style="margin-bottom:0;">
-                    <div class="auc-slider-head"><span>1 kHz</span><span id="lblEqMid">0.0</span></div>
-                    <input type="range" id="rngEqMid" min="-24" max="18" step="0.5" value="0" oninput="onDspSliderInput()">
+                    <div class="auc-slider-head"><span>Gain</span><span id="lblBandGain">0.0 dB</span></div>
+                    <input type="range" id="rngBandGain" min="-24" max="18" step="0.5" value="0" oninput="onBandParamInput()">
                 </div>
                 <div class="auc-slider-row" style="margin-bottom:0;">
-                    <div class="auc-slider-head"><span>4 kHz</span><span id="lblEqHigh">0.0</span></div>
-                    <input type="range" id="rngEqHigh" min="-24" max="18" step="0.5" value="0" oninput="onDspSliderInput()">
+                    <div class="auc-slider-head"><span>Q</span><span id="lblBandQ">0.71</span></div>
+                    <input type="range" id="rngBandQ" min="0" max="1000" step="1" value="456" oninput="onBandParamInput()">
                 </div>
             </div>
         </div>
