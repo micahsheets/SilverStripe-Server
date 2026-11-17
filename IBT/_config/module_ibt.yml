@@ -1,0 +1,16 @@
+---
+Name: module-ibt
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'panel/ibt//$Action/$ID': 'App\IBT\Controller\IBTController'
+    'api/ibt//$Action/$ID': 'App\IBT\Controller\IBTAPIController'
+
+App\IBT\Service\IBTControlService:
+  extensions:
+    - App\IBT\Extensions\IBTAuditExtension
+
+App\IBT\Admin\IBTMatrixAdmin:
+  managed_models:
+    - App\IBT\Model\IBTAuditLog

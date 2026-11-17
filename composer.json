@@ -53,7 +53,8 @@
             "App\\RodeCaster\\": "RodeCaster/src/",
             "App\\P300\\": "P300/src/",
             "App\\AHM\\": "AHM/src/",
-            "App\\": "app/src/"
+            "App\\": "app/src/",
+            "App\\IBT\\": "IBT/src/"
         }
     }
 }
