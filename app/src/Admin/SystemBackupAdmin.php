@@ -6,10 +6,10 @@ use App\Service\SystemBackupService;
 use SilverStripe\Admin\LeftAndMain;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
-use SilverStripe\ORM\ArrayList;
+use SilverStripe\Model\ArrayData;
+use SilverStripe\Model\List\ArrayList;
 use SilverStripe\Security\Permission;
 use SilverStripe\Security\SecurityToken;
-use SilverStripe\View\ArrayData;
 use Throwable;
 
 class SystemBackupAdmin extends LeftAndMain
