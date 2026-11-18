@@ -10,6 +10,7 @@ use SilverStripe\Assets\File;
 use SilverStripe\Assets\Folder;
 use SilverStripe\Assets\Image;
 use SilverStripe\Core\ClassInfo;
+use SilverStripe\Core\Config\Config;
 use SilverStripe\Core\Injector\Injectable;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\ManyManyList;
@@ -83,6 +84,18 @@ class SystemBackupService
         return $modules;
     }
 
+    private function getClassHasOnes(string $class): array
+    {
+        $raw = Config::inst()->get($class, 'has_one');
+        return is_array($raw) ? $raw : [];
+    }
+
+    private function getClassManyManys(string $class): array
+    {
+        $raw = Config::inst()->get($class, 'many_many');
+        return is_array($raw) ? $raw : [];
+    }
+
     public function createBackupZip(array $selectedModuleKeys, bool $includeAssets = true): string
     {
         if (!class_exists(ZipArchive::class)) {
@@ -122,8 +135,8 @@ class SystemBackupService
 
             foreach ($orderedClasses as $class) {
                 $dbFields = array_keys($schema->databaseFields($class));
-                $hasOnes = $schema->hasOne($class);
-                $manyManys = $schema->manyMany($class);
+                $hasOnes = $this->getClassHasOnes($class);
+                $manyManys = $this->getClassManyManys($class);
 
                 $rows = [];
                 foreach ($class::get() as $obj) {
@@ -145,10 +158,10 @@ class SystemBackupService
                         $fkCol = $relName . 'ID';
                         $fkVal = (int) $obj->getField($fkCol);
                         $row['hasOne'][$relName] = [
-                            'targetClass' => $targetClass,
+                            'targetClass' => is_string($targetClass) ? $targetClass : '',
                             'id'          => $fkVal,
                         ];
-                        if ($fkVal > 0 && is_a($targetClass, File::class, true)) {
+                        if ($fkVal > 0 && is_string($targetClass) && is_a($targetClass, File::class, true)) {
                             $fileIdsToBundle[$fkVal] = true;
                         }
                     }
@@ -374,12 +387,13 @@ class SystemBackupService
             if (!$obj) {
                 continue;
             }
-            $manyManySpecs = $schema->manyMany($class);
+            $manyManySpecs = $this->getClassManyManys($class);
             foreach ($item['manyMany'] as $relName => $oldTargetIds) {
                 if (!isset($manyManySpecs[$relName])) {
                     continue;
                 }
-                $targetClass = $manyManySpecs[$relName]['childClass'] ?? '';
+                $spec = $manyManySpecs[$relName];
+                $targetClass = is_array($spec) ? ($spec['through'] ?? '') : (string) $spec;
                 $list = $obj->$relName();
                 if ($list instanceof ManyManyList) {
                     $newIds = [];
@@ -419,14 +433,13 @@ class SystemBackupService
 
     private function sortClassesByDependency(array $classes): array
     {
-        $schema = DataObject::getSchema();
         $classSet = array_flip($classes);
         $deps = [];
 
         foreach ($classes as $cls) {
             $deps[$cls] = [];
-            foreach ($schema->hasOne($cls) as $targetClass) {
-                if ($targetClass !== $cls && isset($classSet[$targetClass])) {
+            foreach ($this->getClassHasOnes($cls) as $targetClass) {
+                if (is_string($targetClass) && $targetClass !== $cls && isset($classSet[$targetClass])) {
                     $deps[$cls][] = $targetClass;
                 }
             }
