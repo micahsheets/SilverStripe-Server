@@ -105,6 +105,8 @@ function setStation(station) {
         const canEdit = !!station.auctioneer.canEditSettings;
 
         topbarActions.style.display = canEdit ? 'flex' : 'none';
+        const sysBtn = document.getElementById('aucSystemBtn');
+        if (sysBtn) sysBtn.style.display = canEdit ? 'inline-block' : 'none';
         activeHeaderCard.style.display = 'flex';
         document.getElementById('aucActiveName').textContent = station.auctioneer.title;
         document.getElementById('aucActiveRoleLabel').textContent = canEdit ? 'ACTIVE AUCTIONEER (EDIT MODE)' : 'ACTIVE AUCTIONEER';
@@ -123,6 +125,8 @@ function setStation(station) {
     } else {
         aucState.liveSettings = null;
         topbarActions.style.display = 'flex';
+        const sysBtnOut = document.getElementById('aucSystemBtn');
+        if (sysBtnOut) sysBtnOut.style.display = 'none';
         activeHeaderCard.style.display = 'none';
         splashView.style.display = 'none';
         editView.style.display = 'none';

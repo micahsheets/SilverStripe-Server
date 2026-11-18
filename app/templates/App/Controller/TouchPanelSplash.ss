@@ -138,5 +138,6 @@
             });
         })();
     </script>
+<% include App\Includes\SystemPowerModal %>
 </body>
 </html>

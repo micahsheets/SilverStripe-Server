@@ -1,0 +1,7 @@
+---
+Name: app-system-power-routes
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'api/system-power//$Action/$ID': 'App\Controller\SystemPowerController'

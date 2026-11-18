@@ -111,6 +111,7 @@
         <div id="aucTopbarActions" style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
             <button type="button" class="auc-btn" onclick="openStationModal()">Lane / Mic</button>
             <button type="button" class="auc-btn" onclick="openAddAuctioneerModal()">+ User</button>
+            <button type="button" class="auc-btn" id="aucSystemBtn" style="display:none;" onclick="openSystemPowerModal()">System</button>
         </div>
     </header>
 
@@ -303,6 +304,7 @@
 </div>
 
 <div id="toast"></div>
+<% include App\Includes\SystemPowerModal %>
 <% include App\Auctioneer\Includes\PanelAuctioneerJS %>
 </body>
 </html>
