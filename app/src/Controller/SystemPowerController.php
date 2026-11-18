@@ -25,7 +25,8 @@ class SystemPowerController extends Controller
     ];
 
     /**
-     * Checks if a raw PIN belongs to an ADMIN Member or matches the Master .env PANEL_PANEL_PIN.
+     * Checks database ADMIN Member PanelPINs first (hashed or plaintext),
+     * then falls back to the .env PANEL_PANEL_PIN.
      */
     private function isValidAdminPin(string $submittedPin): bool
     {
@@ -34,18 +35,24 @@ class SystemPowerController extends Controller
             return false;
         }
 
-        $masterPin = (string) Environment::getEnv('PANEL_PANEL_PIN');
-        if ($masterPin !== '' && hash_equals($masterPin, $pin)) {
-            return true;
+        // 1. Primary: Check database Members with ADMIN permission
+        foreach (Member::get() as $member) {
+            if (!Permission::checkMember($member, 'ADMIN')) {
+                continue;
+            }
+            $stored = (string) $member->getField('PanelPIN');
+            if ($stored === '') {
+                continue;
+            }
+            if (password_verify($pin, $stored) || hash_equals($stored, $pin)) {
+                return true;
+            }
         }
 
-        foreach (Member::get() as $member) {
-            $storedHash = (string) $member->getField('PanelPIN');
-            if ($storedHash !== '' && password_verify($pin, $storedHash)) {
-                if (Permission::checkMember($member, 'ADMIN')) {
-                    return true;
-                }
-            }
+        // 2. Fallback: Check .env PANEL_PANEL_PIN
+        $masterPin = trim((string) Environment::getEnv('PANEL_PANEL_PIN'));
+        if ($masterPin !== '' && hash_equals($masterPin, $pin)) {
+            return true;
         }
 
         return false;
@@ -53,7 +60,7 @@ class SystemPowerController extends Controller
 
     /**
      * Checks if the caller is authorized via:
-     * 1) Active session with ADMIN privileges (Master PIN, ADMIN Member PIN, or CMS Admin), OR
+     * 1) Active session with ADMIN privileges (ADMIN Member PIN, Master .env PIN, or CMS Admin), OR
      * 2) Auctioneer station with CanEditSettings = 1, OR
      * 3) Inline Admin PIN passed directly from Splash/Lock screen.
      */
@@ -66,16 +73,16 @@ class SystemPowerController extends Controller
         $session = $request->getSession();
         $authType = (string) $session->get(PanelSecurityGuard::SESSION_AUTH_TYPE);
 
-        if ($authType === PanelSecurityGuard::AUTH_TYPE_MASTER) {
-            $pin = (string) Environment::getEnv('PANEL_PANEL_PIN');
-            if ($pin !== '' && $session->get(PanelSecurityGuard::SESSION_KEY) === hash('sha256', 'master:' . $pin)) {
+        if ($authType === PanelSecurityGuard::AUTH_TYPE_MEMBER) {
+            $member = PanelSecurityGuard::getAuthenticatedMember($request);
+            if ($member && Permission::checkMember($member, 'ADMIN')) {
                 return true;
             }
         }
 
-        if ($authType === PanelSecurityGuard::AUTH_TYPE_MEMBER) {
-            $member = PanelSecurityGuard::getAuthenticatedMember($request);
-            if ($member && Permission::checkMember($member, 'ADMIN')) {
+        if ($authType === PanelSecurityGuard::AUTH_TYPE_MASTER) {
+            $pin = trim((string) Environment::getEnv('PANEL_PANEL_PIN'));
+            if ($pin !== '' && $session->get(PanelSecurityGuard::SESSION_KEY) === hash('sha256', 'master:' . $pin)) {
                 return true;
             }
         }
