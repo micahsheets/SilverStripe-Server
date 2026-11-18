@@ -17,7 +17,7 @@
                     Modules currently enabled on this panel are pre-selected automatically. You can include all installed modules or only the specific modules in use.
                 </p>
 
-                <form method="POST" action="/admin/system-backup/export" target="_blank">
+                <form id="bkExportForm" onsubmit="downloadBackupArchive(event)">
                     <input type="hidden" name="SecurityID" value="$CsrfToken">
 
                     <div style="display:flex; gap:8px; margin-bottom:10px;">
@@ -50,7 +50,8 @@
                         Include uploaded branding logos &amp; background wallpapers
                     </label>
 
-                    <button type="submit" class="btn btn-primary font-icon-down-circled">Download Backup (.zip)</button>
+                    <button type="submit" id="bkDownloadBtn" class="btn btn-primary font-icon-down-circled">Download Backup (.zip)</button>
+                    <div id="bkExportStatus" style="margin-top:10px; font-size:13px; font-weight:600;"></div>
                 </form>
             </div>
 
@@ -92,6 +93,56 @@ function toggleBackupBoxes(scope, mode) {
         else if (mode === 'none') cb.checked = false;
         else if (mode === 'inuse') cb.checked = cb.dataset.inuse === '1';
     });
+}
+
+async function downloadBackupArchive(e) {
+    e.preventDefault();
+    const form = document.getElementById('bkExportForm');
+    const btn = document.getElementById('bkDownloadBtn');
+    const status = document.getElementById('bkExportStatus');
+    const selected = Array.from(form.querySelectorAll('.bk-export-chk:checked'));
+
+    if (selected.length === 0) {
+        status.style.color = '#dc2626';
+        status.textContent = 'Please select at least one module to back up.';
+        return;
+    }
+
+    btn.disabled = true;
+    status.style.color = '#1e40af';
+    status.textContent = 'Building backup archive...';
+
+    try {
+        const fd = new FormData(form);
+        const res = await fetch('/admin/system-backup/export', { method: 'POST', body: fd });
+        const contentType = res.headers.get('Content-Type') || '';
+        if (!res.ok || contentType.indexOf('application/zip') === -1) {
+            const errText = await res.text();
+            throw new Error(errText.replace(/<[^>]*>/g, '').trim().slice(0, 180) || ('HTTP ' + res.status));
+        }
+
+        const blob = await res.blob();
+        const disp = res.headers.get('Content-Disposition') || '';
+        const match = disp.match(/filename="([^"]+)"/i);
+        const filename = match ? match[1] : 'av-control-backup.zip';
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+        status.style.color = '#16a34a';
+        status.textContent = 'Downloaded ' + filename + ' (' + Math.max(1, Math.round(blob.size / 1024)) + ' KB).';
+    } catch (err) {
+        status.style.color = '#dc2626';
+        status.textContent = 'Backup failed: ' + err.message;
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 async function inspectBackupArchive() {
@@ -160,7 +211,8 @@ async function executeBackupRestore() {
     }
 
     if (!confirm('Restore ' + selected.join(', ') + '? This will update the database with the selected backup data.')) {
-        returnclear    }
+        return;
+    }
 
     const fd = new FormData();
     fd.append('SecurityID', '$CsrfToken');

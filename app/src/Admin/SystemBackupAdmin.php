@@ -19,6 +19,13 @@ class SystemBackupAdmin extends LeftAndMain
     private static string $menu_icon_class = 'font-icon-sync';
     private static int $menu_priority = 40;
 
+    private static array $url_handlers = [
+        'export'  => 'export',
+        'inspect' => 'inspect',
+        'restore' => 'restore',
+        ''        => 'index',
+    ];
+
     private static array $allowed_actions = [
         'export',
         'inspect',
@@ -62,7 +69,7 @@ class SystemBackupAdmin extends LeftAndMain
             $all = SystemBackupService::singleton()->getDiscoverableModules();
             $selected = array_keys($all);
         }
-        $includeAssets = (bool) ($request->requestVar('include_assets') ?? true);
+        $includeAssets = (bool) ($request->requestVar('include_assets') ?? false);
 
         try {
             $zipPath = SystemBackupService::singleton()->createBackupZip($selected, $includeAssets);
