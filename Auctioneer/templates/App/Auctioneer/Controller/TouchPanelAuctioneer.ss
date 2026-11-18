@@ -111,6 +111,7 @@
         <div id="aucTopbarActions" style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
             <button type="button" class="auc-btn" onclick="openStationModal()">Lane / Mic</button>
             <button type="button" class="auc-btn" onclick="openAddAuctioneerModal()">+ User</button>
+            <% if $HasOtherModules %><a href="/panel/discover" class="auc-btn" id="aucMainPanelBtn" style="display:none; text-decoration:none;">&larr; Main Panel</a><% end_if %>
             <button type="button" class="auc-btn" id="aucSystemBtn" style="display:none;" onclick="openSystemPowerModal()">System</button>
         </div>
     </header>

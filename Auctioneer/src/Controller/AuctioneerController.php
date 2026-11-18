@@ -94,4 +94,21 @@ class AuctioneerController extends Controller implements TouchPanelModuleInterfa
             'Page',
         ]);
     }
+
+    public function HasOtherModules(): bool
+    {
+        $settings = \App\Model\PanelSettings::current();
+        if (!$settings) {
+            return false;
+        }
+        $otherCount = 0;
+        foreach ($settings->ActiveModules() as $mod) {
+            $route = "/" . ltrim((string) $mod->Route, "/");
+            if ($route !== "/panel/auctioneer" && $route !== "/") {
+                $otherCount++;
+            }
+        }
+        return $otherCount > 0;
+    }
 }
+

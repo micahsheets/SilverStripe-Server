@@ -107,6 +107,8 @@ function setStation(station) {
         topbarActions.style.display = canEdit ? 'flex' : 'none';
         const sysBtn = document.getElementById('aucSystemBtn');
         if (sysBtn) sysBtn.style.display = canEdit ? 'inline-block' : 'none';
+        const mainPanelBtn = document.getElementById('aucMainPanelBtn');
+        if (mainPanelBtn) mainPanelBtn.style.display = canEdit ? 'inline-flex' : 'none';
         activeHeaderCard.style.display = 'flex';
         document.getElementById('aucActiveName').textContent = station.auctioneer.title;
         document.getElementById('aucActiveRoleLabel').textContent = canEdit ? 'ACTIVE AUCTIONEER (EDIT MODE)' : 'ACTIVE AUCTIONEER';
@@ -127,6 +129,8 @@ function setStation(station) {
         topbarActions.style.display = 'flex';
         const sysBtnOut = document.getElementById('aucSystemBtn');
         if (sysBtnOut) sysBtnOut.style.display = 'none';
+        const mainPanelBtnOut = document.getElementById('aucMainPanelBtn');
+        if (mainPanelBtnOut) mainPanelBtnOut.style.display = 'none';
         activeHeaderCard.style.display = 'none';
         splashView.style.display = 'none';
         editView.style.display = 'none';
