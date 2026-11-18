@@ -1,7 +1,10 @@
 <div class="cms-content fill-height flexbox-area-grow" data-layout-type="border" data-pjax-fragment="Content">
-    <div class="cms-content-header north">
-        <div class="cms-content-header-info flexbox-area-grow vertical-align-items">
-            <h2 class="cms-content-header-title">System Backup &amp; Restore</h2>
+    <div class="cms-content-header north" style="padding:14px 20px; border-bottom:1px solid #dbe0e9; background:#f8fafc;">
+        <div class="cms-content-header-info flexbox-area-grow vertical-align-items" style="display:flex; align-items:center; justify-content:space-between; gap:12px; max-width:960px;">
+            <h2 class="cms-content-header-title" style="margin:0;">System Backup &amp; Restore</h2>
+            <a href="/admin" onclick="if (window.history.length > 1 && document.referrer.indexOf('/admin') !== -1) { event.preventDefault(); window.history.back(); }" class="btn btn-outline-secondary font-icon-left-open" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; padding:7px 14px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; color:#1e293b; font-weight:600; font-size:13px;">
+                &larr; Back to Admin
+            </a>
         </div>
     </div>
 
