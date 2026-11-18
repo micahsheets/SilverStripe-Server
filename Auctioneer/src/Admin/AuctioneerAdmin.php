@@ -8,13 +8,11 @@ use App\Auctioneer\Model\AuctionPanelStation;
 use App\DTX\Model\DTXDevice;
 use App\Model\PanelSettings;
 use SilverStripe\Admin\ModelAdmin;
-use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Forms\FormAction;
 use SilverStripe\Forms\GridField\GridField;
 use SilverStripe\Forms\GridField\GridFieldPaginator;
 use SilverStripe\Forms\LiteralField;
-use SilverStripe\ORM\DB;
 use SilverStripe\Security\SecurityToken;
 
 class AuctioneerAdmin extends ModelAdmin
@@ -29,10 +27,6 @@ class AuctioneerAdmin extends ModelAdmin
     private static string $menu_title = 'Auctioneer Mics';
     private static string $menu_icon_class = 'font-icon-torsos-all';
     private static int $menu_priority = 85;
-
-    private static array $allowed_actions = [
-        'reorderstations',
-    ];
 
     public function canView($member = null)
     {
@@ -54,7 +48,6 @@ class AuctioneerAdmin extends ModelAdmin
         }
 
         if ($this->modelClass === AuctionPanelStation::class) {
-            // Show up to 100 stations on one page so drag-and-drop reorders across all lanes cleanly
             $grid = $form->Fields()->dataFieldByName($this->sanitiseClassName($this->modelClass));
             if ($grid instanceof GridField) {
                 $paginator = $grid->getConfig()->getComponentByType(GridFieldPaginator::class);
@@ -64,7 +57,6 @@ class AuctioneerAdmin extends ModelAdmin
             }
 
             $csrf = SecurityToken::inst()->getValue();
-            $endpoint = $this->Link('reorderstations');
             $form->Fields()->push(LiteralField::create('StationDragSortScript', <<<HTML
 <style>
 .grid-field__table tbody tr[data-id] { cursor: grab; }
@@ -91,18 +83,24 @@ class AuctioneerAdmin extends ModelAdmin
             return Number(r.dataset.id);
         });
         if (banner) banner.textContent = 'Saving order...';
-        fetch('{$endpoint}', {
+        fetch('/api/auctioneer/reorderstations', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'X-SecurityID': '{$csrf}'
+                'X-CSRF-TOKEN': '{$csrf}'
             },
             body: JSON.stringify({ ids: ids })
         })
         .then(function(res) {
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            return res.json();
+            return res.text().then(function(txt) {
+                var json = null;
+                try { json = JSON.parse(txt); } catch (e) {}
+                if (!res.ok) {
+                    throw new Error((json && json.error) ? json.error : ('HTTP ' + res.status));
+                }
+                return json;
+            });
         })
         .then(function(data) {
             if (banner) {
@@ -164,31 +162,6 @@ HTML
         }
 
         return $form;
-    }
-
-    public function reorderstations(HTTPRequest $request): HTTPResponse
-    {
-        if (!$request->isPOST()) {
-            return HTTPResponse::create('Method Not Allowed', 405);
-        }
-        $payload = json_decode((string) $request->getBody(), true);
-        $ids = is_array($payload['ids'] ?? null) ? $payload['ids'] : [];
-        $updated = 0;
-
-        foreach ($ids as $index => $id) {
-            $stationId = (int) $id;
-            if ($stationId > 0) {
-                $sortVal = ($index + 1) * 10;
-                DB::prepared_query(
-                    'UPDATE "AuctionPanelStation" SET "SortOrder" = ? WHERE "ID" = ?',
-                    [$sortVal, $stationId]
-                );
-                $updated++;
-            }
-        }
-
-        return HTTPResponse::create(json_encode(['success' => true, 'updated' => $updated]), 200)
-            ->addHeader('Content-Type', 'application/json');
     }
 
     public function doSeedLanes($data, $form): HTTPResponse

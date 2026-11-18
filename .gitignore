@@ -8,6 +8,8 @@
 /public/_resources/
 /public/assets/
 /patches/
+/_reference/
+/scriptstorun/
 # Environment & local secrets
 .env
 
