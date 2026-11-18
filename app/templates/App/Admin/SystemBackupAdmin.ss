@@ -114,11 +114,18 @@ async function downloadBackupArchive(e) {
 
     try {
         const fd = new FormData(form);
-        const res = await fetch('/admin/system-backup/export', { method: 'POST', body: fd });
+        const res = await fetch('/api/system-backup/export', { method: 'POST', credentials: 'same-origin', body: fd });
         const contentType = res.headers.get('Content-Type') || '';
         if (!res.ok || contentType.indexOf('application/zip') === -1) {
-            const errText = await res.text();
-            throw new Error(errText.replace(/<[^>]*>/g, '').trim().slice(0, 180) || ('HTTP ' + res.status));
+            let msg = 'HTTP ' + res.status;
+            const raw = await res.text();
+            try {
+                const j = JSON.parse(raw);
+                if (j && j.error) msg = j.error;
+            } catch (err) {
+                msg = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180) || msg;
+            }
+            throw new Error(msg);
         }
 
         const blob = await res.blob();
@@ -169,7 +176,7 @@ async function inspectBackupArchive() {
     list.innerHTML = '';
 
     try {
-        const res = await fetch('/admin/system-backup/inspect', { method: 'POST', body: fd });
+        const res = await fetch('/api/system-backup/inspect', { method: 'POST', credentials: 'same-origin', body: fd });
         const data = await res.json();
         if (!data.success) {
             header.textContent = 'Error: ' + (data.error || 'Invalid archive');
@@ -225,7 +232,7 @@ async function executeBackupRestore() {
     status.textContent = 'Restoring modules...';
 
     try {
-        const res = await fetch('/admin/system-backup/restore', { method: 'POST', body: fd });
+        const res = await fetch('/api/system-backup/restore', { method: 'POST', credentials: 'same-origin', body: fd });
         const data = await res.json();
         if (!data.success) {
             status.style.color = '#dc2626';

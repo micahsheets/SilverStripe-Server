@@ -1,0 +1,7 @@
+---
+Name: app-system-backup-routes
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'api/system-backup//$Action/$ID': 'App\Controller\SystemBackupAPIController'
