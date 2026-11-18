@@ -122,8 +122,8 @@ class SystemBackupService
 
             foreach ($orderedClasses as $class) {
                 $dbFields = array_keys($schema->databaseFields($class));
-                $hasOnes = $schema->hasOneComponents($class);
-                $manyManys = $schema->manyManyComponents($class);
+                $hasOnes = $schema->hasOne($class);
+                $manyManys = $schema->manyMany($class);
 
                 $rows = [];
                 foreach ($class::get() as $obj) {
@@ -374,7 +374,7 @@ class SystemBackupService
             if (!$obj) {
                 continue;
             }
-            $manyManySpecs = $schema->manyManyComponents($class);
+            $manyManySpecs = $schema->manyMany($class);
             foreach ($item['manyMany'] as $relName => $oldTargetIds) {
                 if (!isset($manyManySpecs[$relName])) {
                     continue;
@@ -425,7 +425,7 @@ class SystemBackupService
 
         foreach ($classes as $cls) {
             $deps[$cls] = [];
-            foreach ($schema->hasOneComponents($cls) as $targetClass) {
+            foreach ($schema->hasOne($cls) as $targetClass) {
                 if ($targetClass !== $cls && isset($classSet[$targetClass])) {
                     $deps[$cls][] = $targetClass;
                 }
