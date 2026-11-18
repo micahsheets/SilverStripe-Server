@@ -122,5 +122,6 @@
 <div id="status-toast" class="status-toast"></div>
 <% include App\DTX\Includes\PanelAudioJS %>
 <script src="/js/nav-overflow.js?v=53"></script>
+<% include App\Includes\SystemPowerModal %>
 </body>
 </html>

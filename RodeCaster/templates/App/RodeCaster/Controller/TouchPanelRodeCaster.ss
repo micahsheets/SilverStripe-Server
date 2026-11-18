@@ -162,5 +162,6 @@
 <div id="toast"></div>
 <% include App\RodeCaster\Includes\PanelRodeCasterJS %>
 <script src="/js/nav-overflow.js?v=53"></script>
+<% include App\Includes\SystemPowerModal %>
 </body>
 </html>

@@ -95,5 +95,6 @@
 <div id="status-toast" class="status-toast"></div>
 <% include App\Projector\Includes\PanelProjectorJS %>
 <script src="/js/nav-overflow.js?v=53"></script>
+<% include App\Includes\SystemPowerModal %>
 </body>
 </html>

@@ -104,5 +104,6 @@
 <div id="status-toast" class="status-toast"></div>
 <% include App\AHM\Includes\PanelAHMJS %>
 <script src="/js/nav-overflow.js?v=53"></script>
+<% include App\Includes\SystemPowerModal %>
 </body>
 </html>

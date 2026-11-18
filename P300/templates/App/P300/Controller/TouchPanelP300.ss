@@ -177,5 +177,6 @@
 <div id="toast"></div>
 <% include App\P300\Includes\PanelP300JS %>
 <script src="/js/nav-overflow.js?v=53"></script>
+<% include App\Includes\SystemPowerModal %>
 </body>
 </html>

@@ -8,6 +8,7 @@ use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Core\Environment;
+use SilverStripe\Security\Member;
 use SilverStripe\Security\Permission;
 use SilverStripe\Security\Security;
 use SilverStripe\Security\SecurityToken;
@@ -19,15 +20,44 @@ class SystemPowerController extends Controller
 
     private static array $allowed_actions = [
         'status',
+        'verifypin',
         'execute',
     ];
 
     /**
-     * Checks if the caller is either:
-     * 1) Authenticated on the main touch panel with ADMIN privileges (Master PIN, ADMIN Member PIN, or CMS Admin), OR
-     * 2) Logged into an Auctioneer station with CanEditSettings = 1.
+     * Checks if a raw PIN belongs to an ADMIN Member or matches the Master .env PANEL_PANEL_PIN.
      */
-    private function isAuthorizedForPower(HTTPRequest $request, int $stationId = 0): bool
+    private function isValidAdminPin(string $submittedPin): bool
+    {
+        $pin = trim($submittedPin);
+        if ($pin === '') {
+            return false;
+        }
+
+        $masterPin = (string) Environment::getEnv('PANEL_PANEL_PIN');
+        if ($masterPin !== '' && hash_equals($masterPin, $pin)) {
+            return true;
+        }
+
+        foreach (Member::get() as $member) {
+            $storedHash = (string) $member->getField('PanelPIN');
+            if ($storedHash !== '' && password_verify($pin, $storedHash)) {
+                if (Permission::checkMember($member, 'ADMIN')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if the caller is authorized via:
+     * 1) Active session with ADMIN privileges (Master PIN, ADMIN Member PIN, or CMS Admin), OR
+     * 2) Auctioneer station with CanEditSettings = 1, OR
+     * 3) Inline Admin PIN passed directly from Splash/Lock screen.
+     */
+    private function isAuthorizedForPower(HTTPRequest $request, int $stationId = 0, string $inlinePin = ''): bool
     {
         if (Security::getCurrentUser() && Permission::check('ADMIN')) {
             return true;
@@ -58,6 +88,10 @@ class SystemPowerController extends Controller
             }
         }
 
+        if ($inlinePin !== '' && $this->isValidAdminPin($inlinePin)) {
+            return true;
+        }
+
         return false;
     }
 
@@ -68,6 +102,28 @@ class SystemPowerController extends Controller
             'success'    => true,
             'authorized' => $this->isAuthorizedForPower($request, $stationId),
             'csrfToken'  => SecurityToken::inst()->getValue(),
+        ]);
+    }
+
+    public function verifypin(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
+        }
+        if (!PanelSecurityGuard::isValidCSRF($request)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
+        }
+
+        $data = json_decode((string) $request->getBody(), true) ?: $request->postVars();
+        $pin = trim((string) ($data['pin'] ?? ''));
+
+        if (!$this->isValidAdminPin($pin)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid Admin PIN.'], 401);
+        }
+
+        return $this->jsonResponse([
+            'success'   => true,
+            'csrfToken' => SecurityToken::inst()->getValue(),
         ]);
     }
 
@@ -89,8 +145,9 @@ class SystemPowerController extends Controller
 
         $action = trim((string) ($data['power_action'] ?? ''));
         $stationId = (int) ($data['station_id'] ?? 0);
+        $inlinePin = trim((string) ($data['admin_pin'] ?? ''));
 
-        if (!$this->isAuthorizedForPower($request, $stationId)) {
+        if (!$this->isAuthorizedForPower($request, $stationId, $inlinePin)) {
             return $this->jsonResponse(['success' => false, 'error' => 'Admin or Edit PIN privileges required.'], 403);
         }
 
@@ -108,7 +165,6 @@ class SystemPowerController extends Controller
             }
 
             if ($action === 'restart_app') {
-                // Flush SilverStripe cache and schedule graceful Apache reload inside container
                 @shell_exec('rm -rf /tmp/silverstripe-cache* /var/www/html/silverstripe-cache*');
                 @shell_exec('(sleep 1 && apache2ctl graceful) >/dev/null 2>&1 &');
                 return $this->jsonResponse([
@@ -118,7 +174,6 @@ class SystemPowerController extends Controller
                 ]);
             }
 
-            // Write host power trigger file for the Raspberry Pi systemd watcher
             $varDir = BASE_PATH . '/var';
             if (!is_dir($varDir)) {
                 @mkdir($varDir, 0775, true);

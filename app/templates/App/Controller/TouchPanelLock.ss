@@ -155,5 +155,6 @@
             document.getElementById("pinDots").textContent = "•".repeat(pin.length);
         }
     </script>
+<% include App\Includes\SystemPowerModal %>
 </body>
 </html>
