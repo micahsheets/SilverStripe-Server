@@ -160,8 +160,7 @@ async function executeBackupRestore() {
     }
 
     if (!confirm('Restore ' + selected.join(', ') + '? This will update the database with the selected backup data.')) {
-        return;
-    }
+        returnclear    }
 
     const fd = new FormData();
     fd.append('SecurityID', '$CsrfToken');
