@@ -17,7 +17,7 @@ class SystemBackupAdmin extends LeftAndMain
     private static string $url_segment = 'system-backup';
     private static string $menu_title = 'Backup & Restore';
     private static string $menu_icon_class = 'font-icon-sync';
-    private static int $menu_priority = 40;
+    private static int $menu_priority = 0;
 
     private static array $url_handlers = [
         'export'  => 'export',
