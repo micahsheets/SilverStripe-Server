@@ -16,6 +16,30 @@ body[data-theme="light"] .sys-pin-display { background: #f8fafc; }
 .sys-key { height: 50px; font-size: 1.2rem; font-weight: 700; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.3); background: rgba(30, 41, 59, 0.85); color: inherit; cursor: pointer; touch-action: manipulation; }
 body[data-theme="light"] .sys-key { background: #e2e8f0; }
 .sys-key:active { background: #2563eb; color: #fff; }
+.sys-pwr-trigger-inline {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.42);
+    background: rgba(15, 23, 42, 0.84);
+    color: #f8fafc;
+    font-weight: 700;
+    font-size: 0.84rem;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+body[data-theme="light"] .sys-pwr-trigger-inline {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.22);
+}
+.sys-pwr-trigger-fixed {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 9990;
+    backdrop-filter: blur(6px);
+}
 </style>
 
 <!-- Admin PIN Prompt Modal (shown when opening System Power from locked/splash state) -->
@@ -217,11 +241,28 @@ async function triggerSystemPower(action) {
 
         const btn = document.createElement('button');
         btn.type = 'button';
+        btn.id = 'sysPowerHeaderBtn';
         btn.textContent = isSplashOrLock && !window._sysPowerState.authorized ? 'System Power' : 'System';
         btn.title = 'System & Pi Power Controls';
-        btn.style.cssText = 'position:fixed; top:12px; right:12px; z-index:9990; padding:8px 14px; border-radius:10px; border:1px solid rgba(148,163,184,0.42); background:rgba(15,23,42,0.84); color:#f8fafc; font-weight:700; font-size:0.84rem; cursor:pointer; backdrop-filter:blur(6px);';
+        btn.className = 'sys-pwr-trigger-inline';
         btn.addEventListener('click', handleSystemButtonTap);
-        document.body.appendChild(btn);
+
+        // Place inline before the Lock Panel button/link inside the header bar so they never overlap on a 10" screen
+        const lockEl = document.querySelector('a[href*="/panel/lock"], button[onclick*="/panel/lock"], .lock-btn, .panel-lock-btn');
+        if (lockEl && lockEl.parentElement) {
+            lockEl.parentElement.style.display = 'flex';
+            lockEl.parentElement.style.alignItems = 'center';
+            lockEl.parentElement.style.gap = '10px';
+            lockEl.parentElement.insertBefore(btn, lockEl);
+        } else {
+            const headerActions = document.querySelector('.panel-header-actions, .panel-header, header');
+            if (headerActions) {
+                headerActions.appendChild(btn);
+            } else {
+                btn.classList.add('sys-pwr-trigger-fixed');
+                document.body.appendChild(btn);
+            }
+        }
     } catch (e) {}
 })();
 </script>
