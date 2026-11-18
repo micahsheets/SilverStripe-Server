@@ -9,7 +9,7 @@
 /public/assets/
 /patches/
 /_reference/
-/scriptstorun/
+/scripts/
 # Environment & local secrets
 .env
 
