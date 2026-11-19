@@ -32,6 +32,10 @@ body.video-panel {
     overflow: hidden;
 }
 
+*, *::before, *::after {
+  cursor: none !important;
+}
+
 /* =========================================================
    Shared Panel Shell & Navigation
    ========================================================= */

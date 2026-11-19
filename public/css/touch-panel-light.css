@@ -25,6 +25,10 @@ html body[data-theme="light"] .panel-header {
     color: var(--text-main) !important;
 }
 
+*, *::before, *::after {
+  cursor: none !important;
+}
+
 /* =========================================================
    Shared Navigation, Tabs & Cards
    ========================================================= */
