@@ -12,5 +12,6 @@ SilverStripe\Control\Director:
     'panel/unlock//$Action/$ID': 'App\Controller\PanelAuthController'
     'panel/lock//$Action/$ID': 'App\Controller\PanelAuthController'
     'panel/discover//$Action/$ID': 'App\Controller\PanelAuthController'
+    'panel/no-modules//$Action/$ID': 'App\Controller\PanelAuthController'
     'panel-update//$Action': 'App\Controller\SystemUpdateController'
     'panel//$Action/$ID': 'App\Controller\TouchPanelSplashController'

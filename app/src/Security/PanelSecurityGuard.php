@@ -152,7 +152,7 @@ class PanelSecurityGuard
     /**
      * Evaluates a submitted keypad PIN against the 3-tier hierarchy:
      *   Tier 1: Individual Member PanelPIN (from /admin/security)
-     *   Tier 2: Basic Shared PanelSettings PIN (from /admin/av-system)
+     *   Tier 2: Basic Shared PanelSettings PIN (from /admin/av-settings)
      *   Tier 3: Emergency Master .env PANEL_PANEL_PIN
      */
     public static function verifyPIN(HTTPRequest $request, string $submittedPin): bool
@@ -296,7 +296,7 @@ class PanelSecurityGuard
         $settings = PanelSettings::current();
         $candidates = $settings->ActiveModules()->sort('SortOrder');
         if ($candidates->count() === 0) {
-            $candidates = \App\Model\SystemModule::get()->sort('SortOrder');
+            return '/panel/no-modules';
         }
 
         foreach ($candidates as $mod) {

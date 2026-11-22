@@ -2,15 +2,13 @@
 
 namespace App\RodeCaster\Service;
 
-use SilverStripe\Core\Extensible;
-
 use App\RodeCaster\Model\RodeCasterDevice;
+use SilverStripe\Core\Extensible;
 use SilverStripe\Core\Injector\Injectable;
 
 class RodeCasterOSCService
 {
     use Extensible;
-
     use Injectable;
 
     public const ACTION_MAP = [
@@ -25,10 +23,10 @@ class RodeCasterOSCService
         'auto' => ['/actionAuto', 1],
     ];
 
-    public function getDeviceState(RodeCasterDevice $device, float $timeoutSeconds = 0.4): array
+    public function getDeviceState(RodeCasterDevice $device, float $timeoutSeconds = 0.35): array
     {
         $dump = '';
-        $fp = $this->openHandshakeSocket($device, $dump, $timeoutSeconds);
+        $fp = $this->openHandshakeSocket($device, $dump, $timeoutSeconds, 0.45);
         if (!is_resource($fp)) {
             return ['online' => false, 'switchingMode' => null, 'masterVolume' => null, 'padStates' => null];
         }
@@ -50,7 +48,7 @@ class RodeCasterOSCService
     public function getShowLayout(RodeCasterDevice $device): array
     {
         $dump = '';
-        $fp = $this->openHandshakeSocket($device, $dump, 0.6);
+        $fp = $this->openHandshakeSocket($device, $dump, 0.5, 0.8);
         if (is_resource($fp)) {
             fclose($fp);
         }
@@ -149,7 +147,7 @@ class RodeCasterOSCService
 
         if (isset(self::DIRECT_ACTION_MAP[$action])) {
             [$address, $value] = self::DIRECT_ACTION_MAP[$action];
-            return $this->sendTcpOscPacket($device, $this->buildTcpOscIntPacket($address, $value));
+            return $this->sendFastTcpOscPacket($device, $this->buildTcpOscIntPacket($address, $value));
         }
 
         if (!isset(self::ACTION_MAP[$action])) {
@@ -161,13 +159,22 @@ class RodeCasterOSCService
         }
 
         $address = self::ACTION_MAP[$action];
-        return $this->sendTcpOscPacket($device, $this->buildTcpOscIntPacket($address, $index));
+        return $this->sendFastTcpOscPacket($device, $this->buildTcpOscIntPacket($address, $index));
     }
 
     public function setSwitchingMode(RodeCasterDevice $device, string $requested): array
     {
+        if ($requested === 'instant' || $requested === 'studio') {
+            $targetMode = ($requested === 'instant') ? 'instant' : 'studioLeft';
+            $res = $this->sendFastTcpOscPacket($device, $this->buildTcpOscStringPacket('/show/switching_mode', $targetMode));
+            if (!$res['success']) {
+                return $res;
+            }
+            return ['success' => true, 'mode' => $targetMode];
+        }
+
         $dump = '';
-        $fp = $this->openHandshakeSocket($device, $dump, 0.75);
+        $fp = $this->openHandshakeSocket($device, $dump, 0.4, 0.45);
         if (!is_resource($fp)) {
             return ['success' => false, 'error' => 'Unable to connect to RØDECaster device'];
         }
@@ -177,12 +184,7 @@ class RodeCasterOSCService
             if (preg_match('/switching_mode="([^"]+)"/', $dump, $m)) {
                 $current = $m[1];
             }
-
-            $targetMode = match ($requested) {
-                'instant' => 'instant',
-                'studio'  => 'studioLeft',
-                default   => ($current === 'instant') ? 'studioLeft' : 'instant',
-            };
+            $targetMode = ($current === 'instant') ? 'studioLeft' : 'instant';
 
             $packet = $this->buildTcpOscStringPacket('/show/switching_mode', $targetMode);
             $written = @fwrite($fp, $packet);
@@ -203,48 +205,46 @@ class RodeCasterOSCService
         $clampedPercent = max(0, min(100, $percent));
         $floatLevel = round($clampedPercent / 100, 4);
 
-        $dump = '';
-        $fp = $this->openHandshakeSocket($device, $dump, 0.75);
-        if (!is_resource($fp)) {
-            return ['success' => false, 'error' => 'Unable to connect to RØDECaster device'];
+        $channels = [1, 2, 3, 4, 5, 6, 7, 20, 21];
+        $payload = '';
+        foreach ($channels as $oscCh) {
+            $payload .= $this->buildTcpOscFloatPacket("/submix/main/{$oscCh}/level", $floatLevel);
+            $payload .= $this->buildTcpOscFloatPacket("/submix/usb1/{$oscCh}/level", $floatLevel);
         }
 
-        try {
-            $channels = $this->getActiveUnmutedChannels($dump);
-            if (empty($channels)) {
-                $channels = [1, 6, 7, 20, 21];
-            }
-
-            $payload = '';
-            foreach ($channels as $oscCh) {
-                $payload .= $this->buildTcpOscFloatPacket("/submix/main/{$oscCh}/level", $floatLevel);
-                $payload .= $this->buildTcpOscFloatPacket("/submix/usb1/{$oscCh}/level", $floatLevel);
-            }
-
-            $written = @fwrite($fp, $payload);
-            fflush($fp);
-
-            if ($written === false || $written === 0) {
-                return ['success' => false, 'error' => 'Failed writing audio fader OSC packets'];
-            }
-        } finally {
-            fclose($fp);
-        }
-
-        return ['success' => true];
+        return $this->sendFastTcpOscPacket($device, $payload);
     }
 
-    private function sendTcpOscPacket(RodeCasterDevice $device, string $packet): array
+    /**
+     * Sends an OSC command immediately without waiting 2 seconds for the full <RcvShow> XML dump.
+     */
+    private function sendFastTcpOscPacket(RodeCasterDevice $device, string $packet): array
     {
-        $dump = '';
-        $fp = $this->openHandshakeSocket($device, $dump, 0.75);
+        $ip = trim((string) $device->IPAddress);
+        $port = (int) ($device->Port ?: 10024);
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return ['success' => false, 'error' => 'Invalid RØDECaster IP address'];
+        }
+
+        $fp = @fsockopen($ip, $port, $errno, $errstr, 0.35);
         if (!is_resource($fp)) {
             return ['success' => false, 'error' => 'Unable to connect to RØDECaster device'];
         }
 
         try {
+            // Drain initial handshake bytes briefly in non-blocking mode so the TCP recv buffer stays clear
+            stream_set_blocking($fp, false);
+            usleep(8_000);
+            while (($discard = @fread($fp, 32768)) !== false && $discard !== '') {
+                // discard initial greeting burst
+            }
+            stream_set_blocking($fp, true);
+            stream_set_timeout($fp, 0, 200_000);
+
             $written = @fwrite($fp, $packet);
             fflush($fp);
+            usleep(12_000);
 
             if ($written === false || $written < strlen($packet)) {
                 return ['success' => false, 'error' => 'Failed writing OSC packet'];
@@ -281,8 +281,12 @@ class RodeCasterOSCService
         return $str . str_repeat("\0", $pad);
     }
 
-    private function openHandshakeSocket(RodeCasterDevice $device, ?string &$dump = '', float $timeoutSeconds = 0.75): mixed
-    {
+    private function openHandshakeSocket(
+        RodeCasterDevice $device,
+        ?string &$dump = '',
+        float $connectTimeout = 0.35,
+        float $readBudget = 0.55
+    ): mixed {
         $ip = trim((string) $device->IPAddress);
         $port = (int) ($device->Port ?: 10024);
 
@@ -290,14 +294,14 @@ class RodeCasterOSCService
             return null;
         }
 
-        $fp = @fsockopen($ip, $port, $errno, $errstr, $timeoutSeconds);
+        $fp = @fsockopen($ip, $port, $errno, $errstr, $connectTimeout);
         if (!is_resource($fp)) {
             return null;
         }
 
-        stream_set_timeout($fp, 0, 150_000);
+        stream_set_timeout($fp, 0, 80_000);
         $dump = '';
-        $deadline = microtime(true) + 2.0;
+        $deadline = microtime(true) + $readBudget;
         $sawXmlEnd = false;
 
         while (microtime(true) < $deadline) {
@@ -309,7 +313,7 @@ class RodeCasterOSCService
                 }
                 if ($sawXmlEnd && (str_contains($dump, '/show/pgmcurrent') || str_contains($dump, '/device/buttons/'))) {
                     stream_set_blocking($fp, false);
-                    usleep(45_000);
+                    usleep(25_000);
                     while (($tail = @fread($fp, 32768)) !== false && $tail !== '') {
                         $dump .= $tail;
                     }
@@ -319,7 +323,7 @@ class RodeCasterOSCService
             } elseif ($sawXmlEnd) {
                 break;
             } else {
-                usleep(5_000);
+                usleep(4_000);
             }
         }
 
@@ -354,28 +358,6 @@ class RodeCasterOSCService
         return max(0, min(100, (int) round($avg)));
     }
 
-    private function getActiveUnmutedChannels(string $dump): array
-    {
-        if (!preg_match('/<AudioMixer>.*?<\/AudioMixer>/s', $dump, $am)) {
-            return [];
-        }
-
-        $xml = @simplexml_load_string($am[0]);
-        if (!$xml || !isset($xml->audiosources)) {
-            return [];
-        }
-
-        $channels = [];
-        foreach ($xml->audiosources->children() as $tag => $src) {
-            if ((string) $src->enabled === 'true' && (string) $src->mixes->value0->mute !== 'true') {
-                $zeroIdx = (int) str_replace('value', '', $tag);
-                $channels[] = $zeroIdx + 1;
-            }
-        }
-
-        return $channels;
-    }
-
     private function parsePadStates(string $dump): array
     {
         $state = [
@@ -386,12 +368,14 @@ class RodeCasterOSCService
             'rawButtons' => [],
         ];
 
-        $mapInputColour = static function (int $code): string {
+        $mapPadColour = static function (int $code, string $configuredDefault): string {
             return match ($code) {
                 4       => 'state-red',
                 5       => 'state-green',
                 3       => 'state-white',
-                default => 'state-dim',
+                2       => 'state-blue',
+                6       => 'state-pink',
+                default => $configuredDefault,
             };
         };
 
@@ -404,8 +388,25 @@ class RodeCasterOSCService
             $state['rawButtons'][$btn] = $val;
         }
 
+        // Parse /show/pvwcurrent and /show/pgmcurrent OSC messages (,si "<bank>" <0-based-or-1-based-index>)
+        $pvwBank = null;
+        $pvwIdx = -1;
+        if (preg_match_all('/\/show\/pvwcurrent\x00+,si\x00+([^\x00]+)\x00+(.{4})/s', $dump, $pvwMatches, PREG_SET_ORDER)) {
+            $last = end($pvwMatches);
+            $pvwBank = strtolower(trim($last[1]));
+            $pvwIdx = unpack('N', $last[2])[1] ?? -1;
+        }
+
+        $pgmBank = null;
+        $pgmIdx = -1;
+        if (preg_match_all('/\/show\/pgmcurrent\x00+,si\x00+([^\x00]+)\x00+(.{4})/s', $dump, $pgmMatches, PREG_SET_ORDER)) {
+            $last = end($pgmMatches);
+            $pgmBank = strtolower(trim($last[1]));
+            $pgmIdx = unpack('N', $last[2])[1] ?? -1;
+        }
+
         // 1. Scenes (1..7): Configured = White, Preview = Green, Program = Red
-        if (preg_match('/<Scenes>(.*?)<\/Scenes>/s', $dump, $secMatch)) {
+        if (preg_match('/<Scenes\b[^>]*>(.*?)<\/Scenes>/s', $dump, $secMatch)) {
             preg_match_all('/<Scene\b[^>]*\bname="([^"]*)"/i', $secMatch[1], $sceneTags);
             foreach ($sceneTags[1] as $idx => $name) {
                 $slot = $idx + 1;
@@ -417,19 +418,23 @@ class RodeCasterOSCService
             if ($pvw >= 0 && $pvw < 64) {
                 $state['scenes'][$pvw + 1] = 'state-green';
             }
+        } elseif ($pvwBank === 'scene' && $pvwIdx >= 0 && $pvwIdx < 64) {
+            $state['scenes'][$pvwIdx + 1] = 'state-green';
         }
         if (preg_match('/\bPgmScene="(-?\d+)"/', $dump, $m)) {
             $pgm = (int) $m[1];
             if ($pgm >= 0 && $pgm < 64) {
                 $state['scenes'][$pgm + 1] = 'state-red';
             }
+        } elseif ($pgmBank === 'scene' && $pgmIdx >= 0 && $pgmIdx < 64) {
+            $state['scenes'][$pgmIdx + 1] = 'state-red';
         }
 
         // 2. Inputs (1..6): Physical buttons 8..13
         for ($i = 1; $i <= 6; $i++) {
             $btnIdx = 7 + $i;
             if (isset($buttons[$btnIdx])) {
-                $state['inputs'][$i] = $mapInputColour($buttons[$btnIdx]);
+                $state['inputs'][$i] = $mapPadColour($buttons[$btnIdx], 'state-dim');
             }
         }
 
@@ -441,52 +446,48 @@ class RodeCasterOSCService
                 $inner = $block[2];
                 $hasName = preg_match('/<name>([^<]+)<\/name>/i', $inner, $nm) && trim($nm[1]) !== '';
                 $hasSource = preg_match('/<source>([^<]+)<\/source>/i', $inner, $sm) && trim($sm[1]) !== '' && trim($sm[1]) !== '|';
+                $isActive = preg_match('/<(?:active|visible|onAir|enabled)>true<\/(?:active|visible|onAir|enabled)>/i', $inner) === 1;
 
-                $state['overlays'][$slot] = ($hasName || $hasSource) ? 'state-blue' : 'state-dim';
+                if ($isActive) {
+                    $state['overlays'][$slot] = 'state-red';
+                } else {
+                    $state['overlays'][$slot] = ($hasName || $hasSource) ? 'state-blue' : 'state-dim';
+                }
             }
         }
-        if (preg_match('/\bPvwOverlay="(\d+)"/', $dump, $m)) {
+        if (preg_match('/\bPvwOverlay="(-?\d+)"/', $dump, $m)) {
             $ov = (int) $m[1];
             if ($ov >= 0 && $ov < 64 && ($state['overlays'][$ov + 1] ?? '') !== 'state-red') {
                 $state['overlays'][$ov + 1] = 'state-green';
             }
+        } elseif ($pvwBank === 'overlay' && $pvwIdx >= 0 && $pvwIdx < 64 && ($state['overlays'][$pvwIdx + 1] ?? '') !== 'state-red') {
+            $state['overlays'][$pvwIdx + 1] = 'state-green';
         }
-        if (preg_match('/\bPgmOverlay="(\d+)"/', $dump, $m)) {
+        if (preg_match('/\bPgmOverlay="(-?\d+)"/', $dump, $m)) {
             $ov = (int) $m[1];
             if ($ov >= 0 && $ov < 64) {
                 $state['overlays'][$ov + 1] = 'state-red';
             }
+        } elseif ($pgmBank === 'overlay' && $pgmIdx >= 0 && $pgmIdx < 64) {
+            $state['overlays'][$pgmIdx + 1] = 'state-red';
         }
 
         // 4. Media (<File name="..."> inside <MediaFiles>): Configured = Pink, Preview = Green, Playing = Red, Empty = Dim
-        if (preg_match('/<MediaFiles>(.*?)<\/MediaFiles>/s', $dump, $medMatch)) {
+        if (preg_match('/<MediaFiles\b[^>]*>(.*?)<\/MediaFiles>/s', $dump, $medMatch)) {
             preg_match_all('/<File\b[^>]*\bname="([^"]*)"/i', $medMatch[1], $fileTags);
             foreach ($fileTags[1] as $idx => $name) {
                 $slot = $idx + 1;
                 $state['media'][$slot] = trim($name) !== '' ? 'state-pink' : 'state-dim';
             }
         }
-
-        if (preg_match_all('/\/show\/pvwcurrent\x00+,si\x00+([^\x00]+)\x00+(.{4})/s', $dump, $pvwMatches, PREG_SET_ORDER)) {
-            $last = end($pvwMatches);
-            if ($last[1] === 'media') {
-                $medSlot = (unpack('N', $last[2])[1] ?? -1) + 1;
-                if ($medSlot >= 1 && $medSlot <= 8 && ($state['media'][$medSlot] ?? '') !== 'state-red') {
-                    $state['media'][$medSlot] = 'state-green';
-                }
-            }
+        if ($pvwBank === 'media' && $pvwIdx >= 0 && $pvwIdx < 64 && ($state['media'][$pvwIdx + 1] ?? '') !== 'state-red') {
+            $state['media'][$pvwIdx + 1] = 'state-green';
+        }
+        if ($pgmBank === 'media' && $pgmIdx >= 0 && $pgmIdx < 64) {
+            $state['media'][$pgmIdx + 1] = 'state-red';
         }
 
-        if (preg_match_all('/\/show\/pgmcurrent\x00+,si\x00+([^\x00]+)\x00+(.{4})/s', $dump, $pgmMatches, PREG_SET_ORDER)) {
-            $last = end($pgmMatches);
-            if ($last[1] === 'media') {
-                $medSlot = (unpack('N', $last[2])[1] ?? -1) + 1;
-                if ($medSlot >= 1 && $medSlot <= 8) {
-                    $state['media'][$medSlot] = 'state-red';
-                }
-            }
-        }
-
+        // Physical bank buttons 1..7 fallback when Media/Scene bank is active on hardware
         $isMediaBankActive = false;
         for ($i = 1; $i <= 7; $i++) {
             if (($buttons[$i] ?? 0) === 7) {
@@ -500,6 +501,15 @@ class RodeCasterOSCService
                     $state['media'][$i] = 'state-red';
                 } elseif (($buttons[$i] ?? 0) === 5 && ($state['media'][$i] ?? '') !== 'state-red') {
                     $state['media'][$i] = 'state-green';
+                }
+            }
+        } elseif (!empty($buttons)) {
+            // When Scenes bank (buttons 1..7) is active on physical pads, sync any active Red/Green LED state
+            for ($i = 1; $i <= 7; $i++) {
+                if (($buttons[$i] ?? 0) === 4) {
+                    $state['scenes'][$i] = 'state-red';
+                } elseif (($buttons[$i] ?? 0) === 5 && ($state['scenes'][$i] ?? '') !== 'state-red') {
+                    $state['scenes'][$i] = 'state-green';
                 }
             }
         }

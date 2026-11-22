@@ -3,6 +3,7 @@
 namespace App\AHM\Admin;
 
 use App\AHM\Model\AHMDevice;
+use App\Model\PanelSettings;
 use SilverStripe\Admin\ModelAdmin;
 
 class AHMAdmin extends ModelAdmin
@@ -18,4 +19,13 @@ class AHMAdmin extends ModelAdmin
     private static array $managed_models = [
         AHMDevice::class,
     ];
+
+    public function canView($member = null)
+    {
+        if (!PanelSettings::isModuleRouteEnabled('/panel/ahm')) {
+            return false;
+        }
+
+        return parent::canView($member);
+    }
 }

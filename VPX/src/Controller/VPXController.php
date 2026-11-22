@@ -79,6 +79,12 @@ class VPXController extends Controller implements TouchPanelModuleInterface, Per
             return $this->redirect('/panel/splash');
         }
 
+        if (!PanelSettings::isModuleRouteEnabled('/panel/video')) {
+            $session->save($request);
+            $fallback = PanelSecurityGuard::getFirstPermittedUrl($request) ?: '/panel/no-modules';
+            return $this->redirect($fallback);
+        }
+
         $session->save($request);
         $branding = PanelSettings::current();
         $vpxSettings = VPXSettings::current();

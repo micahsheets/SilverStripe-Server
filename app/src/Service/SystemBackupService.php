@@ -472,4 +472,265 @@ class SystemBackupService
 
         return $sorted;
     }
+
+    public function getSnapshotsDir(): string
+    {
+        $dir = BASE_PATH . '/var/system-snapshots';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 02775, true);
+        }
+        return $dir;
+    }
+
+    private function getBaselineMarkerFile(): string
+    {
+        return $this->getSnapshotsDir() . '/baseline.json';
+    }
+
+    private function getActiveMarkerFile(): string
+    {
+        return $this->getSnapshotsDir() . '/active.json';
+    }
+
+    public function getActiveSnapshotId(): ?string
+    {
+        $marker = $this->getActiveMarkerFile();
+        if (!is_file($marker)) {
+            return null;
+        }
+        $data = json_decode((string) @file_get_contents($marker), true);
+        $id = is_array($data) ? trim((string) ($data['id'] ?? '')) : '';
+        if ($id === '' || !is_file($this->getSnapshotsDir() . '/' . basename($id) . '.zip')) {
+            return null;
+        }
+        return basename($id);
+    }
+
+    private function setActiveSnapshotId(string $snapshotId): void
+    {
+        file_put_contents($this->getActiveMarkerFile(), json_encode([
+            'id'       => basename($snapshotId),
+            'loadedAt' => date('c'),
+        ], JSON_PRETTY_PRINT));
+    }
+
+    public function getDefaultBaselineId(): ?string
+    {
+        $marker = $this->getBaselineMarkerFile();
+        if (!is_file($marker)) {
+            return null;
+        }
+        $data = json_decode((string) @file_get_contents($marker), true);
+        $id = is_array($data) ? trim((string) ($data['id'] ?? '')) : '';
+        if ($id === '' || !is_file($this->getSnapshotsDir() . '/' . basename($id) . '.zip')) {
+            return null;
+        }
+        return basename($id);
+    }
+
+    public function setDefaultBaseline(string $snapshotId): void
+    {
+        $cleanId = $this->sanitizeSnapshotId($snapshotId);
+        $zipPath = $this->getSnapshotsDir() . '/' . $cleanId . '.zip';
+        if (!is_file($zipPath)) {
+            throw new RuntimeException('Snapshot not found.');
+        }
+        file_put_contents($this->getBaselineMarkerFile(), json_encode([
+            'id'        => $cleanId,
+            'updatedAt' => date('c'),
+        ], JSON_PRETTY_PRINT));
+    }
+
+    public function saveNamedSnapshot(string $name, array $selectedModuleKeys = [], bool $includeAssets = true, bool $setAsBaseline = false): array
+    {
+        $label = trim($name);
+        if ($label === '') {
+            throw new RuntimeException('Please enter a name for this snapshot.');
+        }
+
+        if (empty($selectedModuleKeys)) {
+            $selectedModuleKeys = array_keys($this->getDiscoverableModules());
+        }
+
+        $slug = preg_replace('/[^a-zA-Z0-9_-]+/', '-', strtolower($label));
+        $slug = trim((string) $slug, '-') ?: 'snapshot';
+        $id = date('Ymd-His') . '_' . substr($slug, 0, 48);
+
+        $tmpZip = $this->createBackupZip($selectedModuleKeys, $includeAssets);
+        $dir = $this->getSnapshotsDir();
+        $destZip = $dir . '/' . $id . '.zip';
+        $destMeta = $dir . '/' . $id . '.json';
+
+        if (!@rename($tmpZip, $destZip)) {
+            if (!@copy($tmpZip, $destZip)) {
+                @unlink($tmpZip);
+                throw new RuntimeException('Unable to write snapshot archive to var/system-snapshots/.');
+            }
+            @unlink($tmpZip);
+        }
+
+        $manifest = $this->inspectBackupZip($destZip);
+        $totalRecords = 0;
+        foreach (($manifest['modules'] ?? []) as $mod) {
+            foreach (($mod['classes'] ?? []) as $cls) {
+                $totalRecords += (int) ($cls['count'] ?? 0);
+            }
+        }
+
+        $meta = [
+            'id'           => $id,
+            'name'         => $label,
+            'createdAt'    => date('c'),
+            'modules'      => array_keys($manifest['modules'] ?? []),
+            'totalRecords' => $totalRecords,
+            'assetsCount'  => count($manifest['assets'] ?? []),
+            'sizeBytes'    => (int) @filesize($destZip),
+        ];
+        file_put_contents($destMeta, json_encode($meta, JSON_PRETTY_PRINT));
+
+        if ($setAsBaseline || $this->getDefaultBaselineId() === null) {
+            $this->setDefaultBaseline($id);
+        }
+
+        $this->setActiveSnapshotId($id);
+        $meta['isBaseline'] = ($this->getDefaultBaselineId() === $id);
+        $meta['isActive'] = true;
+        return $meta;
+    }
+
+    public function listNamedSnapshots(): array
+    {
+        $dir = $this->getSnapshotsDir();
+        $baselineId = $this->getDefaultBaselineId();
+        $activeId = $this->getActiveSnapshotId();
+        $items = [];
+
+        foreach (glob($dir . '/*.zip') ?: [] as $zipFile) {
+            $id = basename($zipFile, '.zip');
+            $metaFile = $dir . '/' . $id . '.json';
+            $meta = is_file($metaFile) ? json_decode((string) @file_get_contents($metaFile), true) : null;
+
+            if (!is_array($meta)) {
+                try {
+                    $manifest = $this->inspectBackupZip($zipFile);
+                    $totalRecords = 0;
+                    foreach (($manifest['modules'] ?? []) as $mod) {
+                        foreach (($mod['classes'] ?? []) as $cls) {
+                            $totalRecords += (int) ($cls['count'] ?? 0);
+                        }
+                    }
+                    $meta = [
+                        'id'           => $id,
+                        'name'         => $id,
+                        'createdAt'    => (string) ($manifest['createdAt'] ?? date('c', (int) @filemtime($zipFile))),
+                        'modules'      => array_keys($manifest['modules'] ?? []),
+                        'totalRecords' => $totalRecords,
+                        'assetsCount'  => count($manifest['assets'] ?? []),
+                        'sizeBytes'    => (int) @filesize($zipFile),
+                    ];
+                } catch (\Throwable $e) {
+                    continue;
+                }
+            }
+
+            $meta['id'] = $id;
+            $meta['isBaseline'] = ($baselineId === $id);
+            $meta['isActive'] = ($activeId === $id);
+            $meta['sizeKB'] = max(1, (int) round(((int) ($meta['sizeBytes'] ?? @filesize($zipFile))) / 1024));
+            $items[] = $meta;
+        }
+
+        usort($items, static function (array $a, array $b): int {
+            if (!empty($a['isBaseline']) && empty($b['isBaseline'])) return -1;
+            if (empty($a['isBaseline']) && !empty($b['isBaseline'])) return 1;
+            return strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? ''));
+        });
+
+        return $items;
+    }
+
+    public function restoreNamedSnapshot(string $snapshotId, string $mode = 'replace'): array
+    {
+        $cleanId = $this->sanitizeSnapshotId($snapshotId);
+        $zipPath = $this->getSnapshotsDir() . '/' . $cleanId . '.zip';
+        if (!is_file($zipPath)) {
+            throw new RuntimeException('Selected snapshot archive does not exist.');
+        }
+        $stats = $this->restoreBackupZip($zipPath, null, $mode);
+        $this->setActiveSnapshotId($cleanId);
+        return $stats;
+    }
+
+    public function overwriteNamedSnapshot(string $snapshotId, array $selectedModuleKeys = [], bool $includeAssets = true): array
+    {
+        $cleanId = $this->sanitizeSnapshotId($snapshotId);
+        $dir = $this->getSnapshotsDir();
+        $destZip = $dir . '/' . $cleanId . '.zip';
+        $destMeta = $dir . '/' . $cleanId . '.json';
+        if (!is_file($destZip)) {
+            throw new RuntimeException('Snapshot not found.');
+        }
+
+        $oldMeta = is_file($destMeta) ? json_decode((string) @file_get_contents($destMeta), true) : [];
+        $label = is_array($oldMeta) && !empty($oldMeta['name']) ? (string) $oldMeta['name'] : $cleanId;
+
+        if (empty($selectedModuleKeys)) {
+            $selectedModuleKeys = array_keys($this->getDiscoverableModules());
+        }
+
+        $tmpZip = $this->createBackupZip($selectedModuleKeys, $includeAssets);
+        if (!@rename($tmpZip, $destZip)) {
+            if (!@copy($tmpZip, $destZip)) {
+                @unlink($tmpZip);
+                throw new RuntimeException('Unable to overwrite snapshot archive.');
+            }
+            @unlink($tmpZip);
+        }
+
+        $manifest = $this->inspectBackupZip($destZip);
+        $totalRecords = 0;
+        foreach (($manifest['modules'] ?? []) as $mod) {
+            foreach (($mod['classes'] ?? []) as $cls) {
+                $totalRecords += (int) ($cls['count'] ?? 0);
+            }
+        }
+
+        $meta = [
+            'id'           => $cleanId,
+            'name'         => $label,
+            'createdAt'    => date('c'),
+            'modules'      => array_keys($manifest['modules'] ?? []),
+            'totalRecords' => $totalRecords,
+            'assetsCount'  => count($manifest['assets'] ?? []),
+            'sizeBytes'    => (int) @filesize($destZip),
+        ];
+        file_put_contents($destMeta, json_encode($meta, JSON_PRETTY_PRINT));
+        $this->setActiveSnapshotId($cleanId);
+
+        $meta['isBaseline'] = ($this->getDefaultBaselineId() === $cleanId);
+        $meta['isActive'] = true;
+        return $meta;
+    }
+
+    public function deleteNamedSnapshot(string $snapshotId): void
+    {
+        $cleanId = $this->sanitizeSnapshotId($snapshotId);
+        $dir = $this->getSnapshotsDir();
+        @unlink($dir . '/' . $cleanId . '.zip');
+        @unlink($dir . '/' . $cleanId . '.json');
+
+        if ($this->getDefaultBaselineId() === $cleanId) {
+            @unlink($this->getBaselineMarkerFile());
+        }
+    }
+
+    private function sanitizeSnapshotId(string $id): string
+    {
+        $clean = basename(trim($id));
+        if ($clean === '' || !preg_match('/^[a-zA-Z0-9_-]+$/', $clean)) {
+            throw new RuntimeException('Invalid snapshot identifier.');
+        }
+        return $clean;
+    }
+
 }

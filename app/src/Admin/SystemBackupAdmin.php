@@ -20,16 +20,28 @@ class SystemBackupAdmin extends LeftAndMain
     private static int $menu_priority = 0;
 
     private static array $url_handlers = [
-        'export'  => 'export',
-        'inspect' => 'inspect',
-        'restore' => 'restore',
-        ''        => 'index',
+        'export'          => 'export',
+        'inspect'         => 'inspect',
+        'restore'         => 'restore',
+        'snapshots'       => 'snapshots',
+        'snapshot-save'   => 'snapshotSave',
+        'snapshot-update' => 'snapshotUpdate',
+        'snapshot-load'   => 'snapshotLoad',
+        'snapshot-base'   => 'snapshotBase',
+        'snapshot-delete' => 'snapshotDelete',
+        ''                => 'index',
     ];
 
     private static array $allowed_actions = [
         'export',
         'inspect',
         'restore',
+        'snapshots',
+        'snapshotSave',
+        'snapshotUpdate',
+        'snapshotLoad',
+        'snapshotBase',
+        'snapshotDelete',
     ];
 
     public function canView($member = null)
@@ -53,9 +65,190 @@ class SystemBackupAdmin extends LeftAndMain
         return $list;
     }
 
+    public function getSavedSnapshotsList(): ArrayList
+    {
+        $list = ArrayList::create();
+        foreach (SystemBackupService::singleton()->listNamedSnapshots() as $snap) {
+            $list->push(ArrayData::create([
+                'ID'           => $snap['id'],
+                'Name'         => $snap['name'],
+                'CreatedAt'    => date('Y-m-d H:i', strtotime((string) $snap['createdAt']) ?: time()),
+                'ModulesText'  => implode(', ', (array) ($snap['modules'] ?? [])),
+                'TotalRecords' => (int) ($snap['totalRecords'] ?? 0),
+                'AssetsCount'  => (int) ($snap['assetsCount'] ?? 0),
+                'SizeKB'       => (int) ($snap['sizeKB'] ?? 1),
+                'IsBaseline'   => !empty($snap['isBaseline']),
+                'IsActive'     => !empty($snap['isActive']),
+            ]));
+        }
+        return $list;
+    }
+
+    public function getDefaultBaselineSnapshot(): ?ArrayData
+    {
+        foreach ($this->getSavedSnapshotsList() as $snap) {
+            if ($snap->IsBaseline) {
+                return $snap;
+            }
+        }
+        return null;
+    }
+
     public function getCsrfToken(): string
     {
         return SecurityToken::inst()->getValue();
+    }
+
+    public function snapshots(HTTPRequest $request): HTTPResponse
+    {
+        if (!$this->canView()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Unauthorized'], 403);
+        }
+        $svc = SystemBackupService::singleton();
+        return $this->jsonResponse([
+            'success'    => true,
+            'baselineId' => $svc->getDefaultBaselineId(),
+            'activeId'   => $svc->getActiveSnapshotId(),
+            'snapshots'  => $svc->listNamedSnapshots(),
+        ]);
+    }
+
+    public function snapshotSave(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST() || !$this->canView()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Unauthorized or invalid method.'], 403);
+        }
+        if (!SecurityToken::inst()->checkRequest($request)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
+        }
+
+        try {
+            $name = trim((string) $request->postVar('snapshot_name'));
+            $selected = $request->postVar('modules');
+            $modules = is_array($selected) ? $selected : [];
+            $includeAssets = (bool) ($request->postVar('include_assets') ?? true);
+            $setAsBaseline = (bool) ($request->postVar('set_as_baseline') ?? false);
+
+            $svc = SystemBackupService::singleton();
+            $meta = $svc->saveNamedSnapshot($name, $modules, $includeAssets, $setAsBaseline);
+
+            return $this->jsonResponse([
+                'success'    => true,
+                'snapshot'   => $meta,
+                'baselineId' => $svc->getDefaultBaselineId(),
+                'activeId'   => $svc->getActiveSnapshotId(),
+                'snapshots'  => $svc->listNamedSnapshots(),
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function snapshotUpdate(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST() || !$this->canView()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Unauthorized or invalid method.'], 403);
+        }
+        if (!SecurityToken::inst()->checkRequest($request)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
+        }
+
+        try {
+            $id = trim((string) $request->postVar('snapshot_id'));
+            $selected = $request->postVar('modules');
+            $modules = is_array($selected) ? $selected : [];
+            $includeAssets = (bool) ($request->postVar('include_assets') ?? true);
+
+            $svc = SystemBackupService::singleton();
+            $meta = $svc->overwriteNamedSnapshot($id, $modules, $includeAssets);
+
+            return $this->jsonResponse([
+                'success'    => true,
+                'snapshot'   => $meta,
+                'baselineId' => $svc->getDefaultBaselineId(),
+                'activeId'   => $svc->getActiveSnapshotId(),
+                'snapshots'  => $svc->listNamedSnapshots(),
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function snapshotLoad(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST() || !$this->canView()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Unauthorized or invalid method.'], 403);
+        }
+        if (!SecurityToken::inst()->checkRequest($request)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
+        }
+
+        try {
+            $id = trim((string) $request->postVar('snapshot_id'));
+            $mode = ($request->postVar('restore_mode') === 'merge') ? 'merge' : 'replace';
+            $svc = SystemBackupService::singleton();
+            $stats = $svc->restoreNamedSnapshot($id, $mode);
+
+            return $this->jsonResponse([
+                'success'    => true,
+                'stats'      => $stats,
+                'baselineId' => $svc->getDefaultBaselineId(),
+                'activeId'   => $svc->getActiveSnapshotId(),
+                'snapshots'  => $svc->listNamedSnapshots(),
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function snapshotBase(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST() || !$this->canView()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Unauthorized or invalid method.'], 403);
+        }
+        if (!SecurityToken::inst()->checkRequest($request)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
+        }
+
+        try {
+            $id = trim((string) $request->postVar('snapshot_id'));
+            $svc = SystemBackupService::singleton();
+            $svc->setDefaultBaseline($id);
+
+            return $this->jsonResponse([
+                'success'    => true,
+                'baselineId' => $svc->getDefaultBaselineId(),
+                'activeId'   => $svc->getActiveSnapshotId(),
+                'snapshots'  => $svc->listNamedSnapshots(),
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
+    }
+
+    public function snapshotDelete(HTTPRequest $request): HTTPResponse
+    {
+        if (!$request->isPOST() || !$this->canView()) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Unauthorized or invalid method.'], 403);
+        }
+        if (!SecurityToken::inst()->checkRequest($request)) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
+        }
+
+        try {
+            $id = trim((string) $request->postVar('snapshot_id'));
+            $svc = SystemBackupService::singleton();
+            $svc->deleteNamedSnapshot($id);
+
+            return $this->jsonResponse([
+                'success'    => true,
+                'baselineId' => $svc->getDefaultBaselineId(),
+                'activeId'   => $svc->getActiveSnapshotId(),
+                'snapshots'  => $svc->listNamedSnapshots(),
+            ]);
+        } catch (Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+        }
     }
 
     public function export(HTTPRequest $request): HTTPResponse

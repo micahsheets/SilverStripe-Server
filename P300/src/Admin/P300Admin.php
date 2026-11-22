@@ -2,6 +2,7 @@
 
 namespace App\P300\Admin;
 
+use App\Model\PanelSettings;
 use App\P300\Model\P300AuditLog;
 use App\P300\Model\P300Device;
 use SilverStripe\Admin\ModelAdmin;
@@ -20,4 +21,13 @@ class P300Admin extends ModelAdmin
         P300Device::class,
         P300AuditLog::class,
     ];
+
+    public function canView($member = null)
+    {
+        if (!PanelSettings::isModuleRouteEnabled('/panel/p300')) {
+            return false;
+        }
+
+        return parent::canView($member);
+    }
 }

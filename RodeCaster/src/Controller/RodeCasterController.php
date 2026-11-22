@@ -3,8 +3,10 @@
 namespace App\RodeCaster\Controller;
 
 use App\Contract\TouchPanelModuleInterface;
+use App\Model\PanelSettings;
 use App\RodeCaster\Model\RodeCasterDevice;
 use App\RodeCaster\Service\RodeCasterOSCService;
+use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
@@ -68,6 +70,11 @@ class RodeCasterController extends Controller implements TouchPanelModuleInterfa
 
     public function index(HTTPRequest $request): HTTPResponse
     {
+        if (!PanelSettings::isModuleRouteEnabled('/panel/rodecaster')) {
+            $fallback = PanelSecurityGuard::getFirstPermittedUrl($request) ?: '/panel/no-modules';
+            return $this->redirect($fallback);
+        }
+
         return HTTPResponse::create($this->renderWith(['App\\RodeCaster\\Controller\\TouchPanelRodeCaster', 'Page']));
     }
 

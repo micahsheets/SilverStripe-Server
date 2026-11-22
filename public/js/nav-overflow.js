@@ -533,10 +533,17 @@
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             const isOnline = Boolean(data && data.online);
+            const totalDevices = Number(data && data.avDevices ? data.avDevices.total : 0);
+            const hasNoDevices = isOnline && totalDevices === 0;
 
             dots.forEach((dot) => {
                 dot.classList.toggle('offline', !isOnline);
-                dot.title = data.reason || (isOnline ? 'LAN Connected' : 'LAN Offline');
+                dot.classList.toggle('no-devices', hasNoDevices);
+                if (hasNoDevices) {
+                    dot.title = 'No AV devices configured in Admin';
+                } else {
+                    dot.title = data.reason || (isOnline ? 'LAN Connected' : 'LAN Offline');
+                }
             });
         } catch (err) {
             dots.forEach((dot) => {

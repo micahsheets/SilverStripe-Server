@@ -19,6 +19,7 @@ class PanelAuthController extends Controller
         'unlock' => 'unlock',
         'lock' => 'lock',
         'discover' => 'discover',
+        'no-modules' => 'nomodules',
     ];
 
     private static array $allowed_actions = [
@@ -27,6 +28,7 @@ class PanelAuthController extends Controller
         'unlock',
         'lock',
         'discover',
+        'nomodules',
     ];
 
     protected function init(): void
@@ -49,6 +51,7 @@ class PanelAuthController extends Controller
             'panel/unlock' => $this->unlock($request),
             'panel/lock' => $this->lock($request),
             'panel/discover' => $this->discover($request),
+            'panel/no-modules' => $this->nomodules($request),
             default => $this->pin($request),
         };
     }
@@ -129,6 +132,30 @@ class PanelAuthController extends Controller
             'SiteConfig' => $branding,
         ])->renderWith([
             'App\\Controller\\TouchPanelDiscover',
+            'Page',
+        ]);
+    }
+
+
+    public function nomodules(HTTPRequest $request): DBHTMLText|HTTPResponse
+    {
+        if (!PanelSecurityGuard::isAuthenticated($request)) {
+            return $this->redirect('/panel/splash');
+        }
+
+        $branding = PanelSettings::current();
+        if ($branding->ActiveModules()->count() > 0) {
+            $target = $this->getFirstPermittedUrl($request);
+            if ($target && $target !== '/panel/no-modules') {
+                return $this->redirect($target);
+            }
+        }
+
+        return $this->customise([
+            'PanelSettings' => $branding,
+            'SiteConfig' => $branding,
+        ])->renderWith([
+            'App\\Controller\\TouchPanelNoModules',
             'Page',
         ]);
     }
