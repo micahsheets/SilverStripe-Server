@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Allen & Heath AHM</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,7 +30,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <style>
         .ahm-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:16px; }
         .ahm-section-title { font-size:0.85rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.75; margin:18px 0 10px 0; font-weight:800; }
@@ -64,7 +64,7 @@
 <div class="panel-backdrop">
     <header class="panel-header">
         <div class="brand-wrap">
-            <span class="status-dot" id="ahmConnectionDot"></span>
+            <span style="display:inline-flex; align-items:center; gap:6px;"><span class="status-dot" id="connectionDot" title="LAN Status"></span><span class="status-dot" id="ahmConnectionDot" title="AHM Device Status"></span></span>
             <% if $PanelSettings.PanelLogo.exists %>
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(36).URL" alt="Logo">
             <% end_if %>
@@ -90,8 +90,7 @@
         <div class="ahm-toolbar">
             <div class="device-tabs" id="ahmDeviceTabs"></div>
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                <span id="ahmModelBadge" style="font-size:0.8rem; opacity:0.8; font-weight:700;"></span>
-                <div class="view-toggle-group" role="group" aria-label="Layout View">
+                                <div class="view-toggle-group" role="group" aria-label="Layout View">
                     <button type="button" class="view-toggle-btn active" data-view-mode="grid">Grid</button>
                     <button type="button" class="view-toggle-btn" data-view-mode="list">List</button>
                 </div>
@@ -103,7 +102,7 @@
 </div>
 <div id="status-toast" class="status-toast"></div>
 <% include App\AHM\Includes\PanelAHMJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

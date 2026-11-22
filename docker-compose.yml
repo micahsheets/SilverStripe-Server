@@ -12,8 +12,6 @@ services:
       - SS_DATABASE_NAME=SS_mysite
       - SS_DATABASE_USERNAME=root
       - SS_DATABASE_PASSWORD=root
-      - SS_DEFAULT_ADMIN_USERNAME=admin
-      - SS_DEFAULT_ADMIN_PASSWORD=password
     depends_on:
       - database
 

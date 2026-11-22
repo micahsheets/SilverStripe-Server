@@ -1,0 +1,6 @@
+{
+  "target": "av-touchpanel",
+  "version": "1.0-26325-194158",
+  "modules": ["AHM", "Auctioneer", "DTX", "Enttec", "IBT", "P300", "Projector", "RodeCaster", "Visca", "VPX"],
+  "created": "2026-11-22T03:41:58Z"
+}

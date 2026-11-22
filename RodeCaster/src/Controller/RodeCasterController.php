@@ -2,15 +2,19 @@
 
 namespace App\RodeCaster\Controller;
 
+use App\Contract\TouchPanelModuleInterface;
 use App\RodeCaster\Model\RodeCasterDevice;
 use App\RodeCaster\Service\RodeCasterOSCService;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\HTTPResponse;
+use SilverStripe\Security\PermissionProvider;
 use SilverStripe\Security\SecurityToken;
 
-class RodeCasterController extends Controller
+class RodeCasterController extends Controller implements TouchPanelModuleInterface, PermissionProvider
 {
+    public const PERM_ACCESS_RODECASTER = 'PANEL_ACCESS_RODECASTER';
+
     private static array $allowed_actions = [
         'index',
         'status',
@@ -24,6 +28,37 @@ class RodeCasterController extends Controller
         'trigger' => 'trigger',
         ''        => 'index',
     ];
+
+    public static function getModuleTitle(): string
+    {
+        return 'RØDECaster Video';
+    }
+
+    public static function getModuleRoute(): string
+    {
+        return '/panel/rodecaster';
+    }
+
+    public static function getModulePermission(): string
+    {
+        return self::PERM_ACCESS_RODECASTER;
+    }
+
+    public static function getModuleSortOrder(): int
+    {
+        return 80;
+    }
+
+    public function providePermissions(): array
+    {
+        return [
+            self::PERM_ACCESS_RODECASTER => [
+                'name'     => 'Access RØDECaster Video Control Panel',
+                'category' => 'AV & Control System',
+                'help'     => 'Allows switching scenes, inputs, overlays, media, and volume on RØDECaster Video units.',
+            ],
+        ];
+    }
 
     protected function init()
     {
@@ -46,15 +81,15 @@ class RodeCasterController extends Controller
             $layout = $osc->getShowLayout($dev);
 
             $list[] = [
-                'id'       => (int) $dev->ID,
-                'name'     => (string) ($dev->Title ?: 'RØDECaster Video'),
-                'ip'       => (string) $dev->IPAddress,
-                'port'     => (int) ($dev->Port ?: 10024),
+                'id'         => (int) $dev->ID,
+                'name'       => (string) ($dev->Title ?: 'RØDECaster Video'),
+                'ip'         => (string) $dev->IPAddress,
+                'port'       => (int) ($dev->Port ?: 10024),
                 'locationId' => (int) $dev->LocationID,
-                'scenes'   => $this->sliceHardwareMap($dev, 'Scene', $layout['scenes'] ?? []),
-                'inputs'   => $this->sliceHardwareMap($dev, 'Input', $layout['inputs'] ?? []),
-                'overlays' => $this->sliceHardwareMap($dev, 'Overlay', $layout['overlays'] ?? []),
-                'media'    => $this->sliceHardwareMap($dev, 'Media', $layout['media'] ?? []),
+                'scenes'     => $this->sliceHardwareMap($dev, 'Scene', $layout['scenes'] ?? []),
+                'inputs'     => $this->sliceHardwareMap($dev, 'Input', $layout['inputs'] ?? []),
+                'overlays'   => $this->sliceHardwareMap($dev, 'Overlay', $layout['overlays'] ?? []),
+                'media'      => $this->sliceHardwareMap($dev, 'Media', $layout['media'] ?? []),
             ];
         }
 

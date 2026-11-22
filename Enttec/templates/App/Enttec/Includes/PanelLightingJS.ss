@@ -502,21 +502,51 @@
 
     init();
 
-    document.querySelectorAll('.unified-device-tabs .device-tab').forEach(rBtn => {
-        rBtn.addEventListener('click', () => {
-            const locId = parseInt(rBtn.dataset.locationId || '0', 10);
-            document.querySelectorAll('.unified-device-tabs .device-tab').forEach(b => b.classList.toggle('active', b === rBtn));
-            const filtered = locId === 0 ? devices : devices.filter(d => Number(d.locationId || 0) === locId);
+    let activeLightingLocationId = 0;
+
+    async function applyLightingRoomFilter(locId) {
+        activeLightingLocationId = Number(locId) || 0;
+        document.querySelectorAll('.unified-room-tabs .room-tab').forEach(b => {
+            b.classList.toggle('active', Number(b.dataset.locationId || 0) === activeLightingLocationId);
+        });
+        const filtered = activeLightingLocationId === 0
+            ? devices
+            : devices.filter(d => Number(d.locationId || 0) === activeLightingLocationId);
+
+        if (deviceTabsEl) {
+            Array.from(deviceTabsEl.children).forEach((tabBtn, idx) => {
+                const dev = devices[idx];
+                tabBtn.style.display = (!dev || activeLightingLocationId === 0 || Number(dev.locationId || 0) === activeLightingLocationId) ? '' : 'none';
+            });
+        }
+
+        const actionControls = document.querySelector('.lighting-panel .action-controls');
+        if (filtered.length === 0) {
+            activeDevice = null;
+            if (actionControls) actionControls.style.display = 'none';
+            if (drawerEl) drawerEl.classList.remove('open');
+            if (deviceMetaEl) deviceMetaEl.textContent = '';
+            if (scenesGridEl) {
+                scenesGridEl.innerHTML = '<div style="grid-column:1/-1; color:var(--text-muted); padding:18px;">No Enttec lighting controllers assigned to this room.</div>';
+            }
+            return;
+        }
+
+        if (actionControls) actionControls.style.display = '';
+        if (!activeDevice || (activeLightingLocationId !== 0 && Number(activeDevice.locationId || 0) !== activeLightingLocationId)) {
+            await selectDevice(filtered[0]);
             if (deviceTabsEl) {
                 Array.from(deviceTabsEl.children).forEach((tabBtn, idx) => {
                     const dev = devices[idx];
-                    tabBtn.style.display = (!dev || locId === 0 || Number(dev.locationId || 0) === locId) ? '' : 'none';
+                    tabBtn.style.display = (!dev || activeLightingLocationId === 0 || Number(dev.locationId || 0) === activeLightingLocationId) ? '' : 'none';
                 });
             }
-            if (filtered.length > 0 && (!activeDevice || (locId !== 0 && Number(activeDevice.locationId || 0) !== locId))) {
-                const targetIndex = devices.indexOf(filtered[0]);
-                if (deviceTabsEl && deviceTabsEl.children[targetIndex]) deviceTabsEl.children[targetIndex].click();
-            }
+        }
+    }
+
+    document.querySelectorAll('.unified-room-tabs .room-tab').forEach(rBtn => {
+        rBtn.addEventListener('click', () => {
+            applyLightingRoomFilter(parseInt(rBtn.dataset.locationId || '0', 10));
         });
     });
 })();

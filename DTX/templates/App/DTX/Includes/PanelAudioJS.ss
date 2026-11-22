@@ -2,7 +2,7 @@
 (function () {
     const csrfToken = document.body.dataset.csrf || '';
     const toastEl = document.getElementById('status-toast');
-    const connectionDot = document.getElementById('connectionDot');
+    const dtxDot = document.getElementById('dtxConnectionDot');
     const deviceCards = Array.from(document.querySelectorAll('.audio-device-card'));
     const tabsContainer = document.getElementById('audio-device-tabs');
     const refreshBtn = document.getElementById('btn-refresh-dtx');
@@ -159,8 +159,8 @@
                 action: 'state',
                 device_id: deviceId,
             });
-            if (connectionDot) {
-                connectionDot.style.background = resp.online ? '#22c55e' : '#f59e0b';
+            if (dtxDot) {
+                dtxDot.style.backgroundColor = resp.online ? '#22c55e' : '#ef4444';
             }
             if (metaEl) {
                 metaEl.textContent = `${baseMeta} — ${resp.online ? 'Connected' : 'Offline (Model Defaults)'}`;
@@ -170,7 +170,7 @@
                 showToast(resp.online ? 'Channels synced from DTX' : 'DTX offline — loaded model channels');
             }
         } catch (err) {
-            if (connectionDot) connectionDot.style.background = '#ef4444';
+            if (dtxDot) dtxDot.style.backgroundColor = '#ef4444';
             if (metaEl) metaEl.textContent = `${baseMeta} — Error`;
             showToast(err.message, true);
         }
@@ -232,8 +232,22 @@
                 dBtn.style.display = matches ? '' : 'none';
                 if (matches && firstVisibleId === null && card) firstVisibleId = card.dataset.deviceId;
             });
-            if (firstVisibleId !== null) selectDevice(firstVisibleId);
-            else deviceCards.forEach(c => { c.style.display = 'none'; });
+            let emptyBanner = document.getElementById('dtxEmptyRoomBanner');
+            if (!emptyBanner && tabsContainer && tabsContainer.parentElement) {
+                emptyBanner = document.createElement('div');
+                emptyBanner.id = 'dtxEmptyRoomBanner';
+                emptyBanner.className = 'dsp-card';
+                emptyBanner.style.cssText = 'display:none; color:var(--text-muted); margin-top:12px;';
+                emptyBanner.textContent = 'No Aurora DTX audio processors assigned to this room.';
+                tabsContainer.parentElement.insertAdjacentElement('afterend', emptyBanner);
+            }
+            if (firstVisibleId !== null) {
+                if (emptyBanner) emptyBanner.style.display = 'none';
+                selectDevice(firstVisibleId);
+            } else {
+                deviceCards.forEach(c => { c.style.display = 'none'; });
+                if (emptyBanner) emptyBanner.style.display = '';
+            }
         });
     });
 

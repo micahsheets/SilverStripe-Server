@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - RØDECaster Video</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,7 +30,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <% include App\RodeCaster\Includes\RodeCasterPanelCSS %>
     <style>
         .rc-mode-controls {
@@ -69,7 +69,7 @@
 
     <header class="panel-header">
         <div class="brand-wrap">
-            <span class="status-dot" id="connectionDot"></span>
+            <span style="display:inline-flex; align-items:center; gap:6px;"><span class="status-dot" id="connectionDot" title="LAN Status"></span><span id="rcDeviceStatus" style="display:inline-flex; align-items:center;" title="RØDECaster Device Status"></span></span>
             <% if $PanelSettings.PanelLogo.exists %>
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(36).URL" alt="Logo">
             <% end_if %>
@@ -96,21 +96,22 @@
         </div>
         <div class="matrix-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
             <div class="device-tabs" id="rcDeviceTabs"></div>
-            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                <div class="rc-mode-controls" role="group" aria-label="Switching Mode">
-                    <button type="button" id="btnModeStudio" class="rc-mode-btn" onclick="triggerRodeCaster('studio', 0, 'Studio Mode')">STUDIO</button>
-                    <button type="button" id="btnModeInstant" class="rc-mode-btn" onclick="triggerRodeCaster('instant', 0, 'Instant Mode')">INSTANT</button>
+            <div class="rc-transport-bar" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; width:100%; flex:1 1 100%;">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <div class="rc-mode-controls" role="group" aria-label="Switching Mode">
+                        <button type="button" id="btnModeStudio" class="rc-mode-btn" onclick="triggerRodeCaster('studio', 0, 'Studio Mode')">STUDIO</button>
+                        <button type="button" id="btnModeInstant" class="rc-mode-btn" onclick="triggerRodeCaster('instant', 0, 'Instant Mode')">INSTANT</button>
+                    </div>
+                    <div class="rc-transition-controls" id="rcTransitionControls">
+                        <button type="button" class="rc-trans-btn cut" onclick="triggerRodeCaster('cut', 0, 'CUT')">CUT</button>
+                        <button type="button" class="rc-trans-btn auto" onclick="triggerRodeCaster('auto', 0, 'AUTO')">AUTO</button>
+                    </div>
                 </div>
-                <div class="rc-volume-control">
+                <div class="rc-volume-control" style="margin-left:auto;">
                     <label for="rc-master-vol" class="rc-vol-label">HDMI / USB MIX</label>
                     <input id="rc-master-vol" type="range" min="0" max="100" value="65" class="rc-vol-slider" />
                     <span id="rc-master-vol-val" class="rc-vol-value">65%</span>
                 </div>
-                <div class="rc-transition-controls" id="rcTransitionControls">
-                    <button type="button" class="rc-trans-btn cut" onclick="triggerRodeCaster('cut', 0, 'CUT')">CUT</button>
-                    <button type="button" class="rc-trans-btn auto" onclick="triggerRodeCaster('auto', 0, 'AUTO')">AUTO</button>
-                </div>
-                <div id="rcDeviceStatus"></div>
             </div>
         </div>
 
@@ -161,7 +162,7 @@
 
 <div id="toast"></div>
 <% include App\RodeCaster\Includes\PanelRodeCasterJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

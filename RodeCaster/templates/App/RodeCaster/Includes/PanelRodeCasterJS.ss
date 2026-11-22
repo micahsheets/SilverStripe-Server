@@ -272,7 +272,7 @@ function renderRodeCaster() {
             rcState.devices.forEach((d) => {
                 const tab = document.createElement('button');
                 tab.type = 'button';
-                tab.className = `room-pill ${d.id === dev.id ? 'active' : ''}`;
+                tab.className = `device-tab ${d.id === dev.id ? 'active' : ''}`;
                 tab.textContent = d.name;
                 tab.addEventListener('click', () => window.selectRodeCasterDevice(d.id));
                 tabsEl.appendChild(tab);
@@ -330,25 +330,68 @@ document.addEventListener('visibilitychange', () => {
     if (!document.hidden) loadRodeCasterPing();
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    const btns = Array.from(document.querySelectorAll('.unified-room-tabs .room-tab'));
-    btns.forEach(rBtn => {
-        rBtn.addEventListener('click', () => {
-            const locId = parseInt(rBtn.dataset.locationId || '0', 10);
-            btns.forEach(b => b.classList.toggle('active', b === rBtn));
-            const filtered = locId === 0 ? rcState.devices : rcState.devices.filter(d => Number(d.locationId || 0) === locId);
-            const devTabs = document.getElementById('rcDeviceTabs');
-            if (devTabs) {
-                Array.from(devTabs.children).forEach((tabBtn, idx) => {
-                    const dev = rcState.devices[idx];
-                    tabBtn.style.display = (!dev || locId === 0 || Number(dev.locationId || 0) === locId) ? '' : 'none';
-                });
-            }
-            if (filtered.length > 0 && (!rcState.activeDeviceId || (locId !== 0 && !filtered.some(d => d.id === rcState.activeDeviceId)))) {
-                rcState.activeDeviceId = filtered[0].id;
-                if (typeof renderRodeCaster === 'function') renderRodeCaster();
-            }
-        });
+let activeRcLocationId = 0;
+
+function applyRodeCasterRoomFilter(locId) {
+    activeRcLocationId = Number(locId) || 0;
+    document.querySelectorAll('.unified-room-tabs .room-tab').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.locationId || 0) === activeRcLocationId);
     });
+
+    const filtered = activeRcLocationId === 0
+        ? rcState.devices
+        : rcState.devices.filter(d => Number(d.locationId || 0) === activeRcLocationId);
+
+    const devTabs = document.getElementById('rcDeviceTabs');
+    if (devTabs) {
+        Array.from(devTabs.children).forEach((tabBtn, idx) => {
+            const dev = rcState.devices[idx];
+            tabBtn.style.display = (!dev || activeRcLocationId === 0 || Number(dev.locationId || 0) === activeRcLocationId) ? '' : 'none';
+        });
+    }
+
+    const transportBar = document.querySelector('.rc-transport-bar');
+    const routingCols = document.querySelector('.routing-columns');
+    const mainEl = document.querySelector('.panel-main');
+    let emptyBanner = document.getElementById('rcEmptyRoomBanner');
+    if (!emptyBanner && mainEl) {
+        emptyBanner = document.createElement('div');
+        emptyBanner.id = 'rcEmptyRoomBanner';
+        emptyBanner.className = 'dsp-card';
+        emptyBanner.style.cssText = 'display:none; color:var(--text-muted); margin-top:12px; padding:20px;';
+        emptyBanner.textContent = 'No RØDECaster units assigned to this room.';
+        mainEl.appendChild(emptyBanner);
+    }
+
+    if (filtered.length === 0) {
+        rcState.activeDeviceId = 0;
+        rcState.renderedDeviceId = 0;
+        if (transportBar) transportBar.style.display = 'none';
+        if (routingCols) routingCols.style.display = 'none';
+        if (emptyBanner) emptyBanner.style.display = '';
+        return;
+    }
+
+    if (transportBar) transportBar.style.display = 'flex';
+    if (routingCols) routingCols.style.display = '';
+    if (emptyBanner) emptyBanner.style.display = 'none';
+
+    if (!rcState.activeDeviceId || !filtered.some(d => d.id === rcState.activeDeviceId)) {
+        if (typeof window.selectRodeCasterDevice === 'function') {
+            window.selectRodeCasterDevice(filtered[0].id);
+        } else {
+            rcState.activeDeviceId = filtered[0].id;
+            rcState.renderedDeviceId = 0;
+            if (typeof renderRodeCaster === 'function') renderRodeCaster();
+        }
+    } else if (typeof renderRodeCaster === 'function') {
+        renderRodeCaster();
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const rBtn = e.target.closest('.unified-room-tabs .room-tab');
+    if (!rBtn) return;
+    applyRodeCasterRoomFilter(parseInt(rBtn.dataset.locationId || '0', 10));
 });
 </script>

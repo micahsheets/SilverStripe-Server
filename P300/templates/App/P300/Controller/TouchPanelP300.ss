@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - Shure P300 DSP</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,7 +30,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <style>
         .p300-device-bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:16px; }
         .p300-hero-card {
@@ -133,7 +133,7 @@
 
     <header class="panel-header">
         <div class="brand-wrap">
-            <span class="status-dot" id="p300ConnectionDot"></span>
+            <span style="display:inline-flex; align-items:center; gap:6px;"><span class="status-dot" id="connectionDot" title="LAN Status"></span><span class="status-dot" id="p300ConnectionDot" title="Shure P300 Device Status"></span></span>
             <% if $PanelSettings.PanelLogo.exists %>
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(36).URL" alt="Logo">
             <% end_if %>
@@ -176,7 +176,7 @@
 
 <div id="toast"></div>
 <% include App\P300\Includes\PanelP300JS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

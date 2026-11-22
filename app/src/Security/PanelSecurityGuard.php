@@ -15,6 +15,7 @@ class PanelSecurityGuard
     public const SESSION_KEY = 'PanelUnlocked';
     public const SESSION_AUTH_TYPE = 'AuthType';       // 'cms' | 'member' | 'basic' | 'master'
     public const SESSION_MEMBER_ID = 'AuthMemberID';
+    public const SESSION_LAST_ACTIVITY = 'PanelLastActivityAt';
 
     public const AUTH_TYPE_CMS = 'cms';
     public const AUTH_TYPE_MEMBER = 'member';
@@ -49,6 +50,26 @@ class PanelSecurityGuard
     {
         if (!self::isAuthRequired()) {
             return true;
+        }
+
+        $path = '/' . ltrim((string) strtok($request->getURL(), '?'), '/');
+        $isAuctioneerRoute = str_starts_with($path, '/panel/auctioneer') || str_starts_with($path, '/api/auctioneer');
+
+        if (!$isAuctioneerRoute) {
+            $settings = PanelSettings::current();
+            $timeoutMin = max(0, (int) $settings->SessionTimeoutMinutes);
+            if ($timeoutMin > 0) {
+                $session = $request->getSession();
+                $lastAct = (int) $session->get(self::SESSION_LAST_ACTIVITY);
+                if ($lastAct > 0 && (time() - $lastAct) >= ($timeoutMin * 60)) {
+                    self::lock($request);
+                    return false;
+                }
+                // Update activity timestamp on real user navigation/actions (not background status polls)
+                if (!str_starts_with($path, '/api/network-status') && !str_starts_with($path, '/api/system-power/status')) {
+                    $session->set(self::SESSION_LAST_ACTIVITY, time());
+                }
+            }
         }
 
         // 1. Active CMS login
@@ -150,6 +171,7 @@ class PanelSecurityGuard
                 $session->set(self::SESSION_AUTH_TYPE, self::AUTH_TYPE_MEMBER);
                 $session->set(self::SESSION_MEMBER_ID, (int) $member->ID);
                 $session->set(self::SESSION_KEY, hash('sha256', 'member:' . $member->ID));
+                $session->set(self::SESSION_LAST_ACTIVITY, time());
                 return true;
             }
         }
@@ -161,7 +183,9 @@ class PanelSecurityGuard
         if ($settings->verifyBasicPIN($pin)) {
             $session->set(self::SESSION_AUTH_TYPE, self::AUTH_TYPE_BASIC);
             $session->clear(self::SESSION_MEMBER_ID);
+        $session->clear(self::SESSION_LAST_ACTIVITY);
             $session->set(self::SESSION_KEY, hash('sha256', 'basic:' . $settings->BasicPanelPIN));
+            $session->set(self::SESSION_LAST_ACTIVITY, time());
             return true;
         }
 
@@ -170,7 +194,9 @@ class PanelSecurityGuard
         if ($masterPin !== '' && hash_equals($masterPin, $pin)) {
             $session->set(self::SESSION_AUTH_TYPE, self::AUTH_TYPE_MASTER);
             $session->clear(self::SESSION_MEMBER_ID);
+        $session->clear(self::SESSION_LAST_ACTIVITY);
             $session->set(self::SESSION_KEY, hash('sha256', 'master:' . $masterPin));
+            $session->set(self::SESSION_LAST_ACTIVITY, time());
 
             // Record an audit entry whenever the emergency master .env PIN is used
             static::singleton()->extend('onPanelSecurityAudit', $ip, $reason);
@@ -190,6 +216,7 @@ class PanelSecurityGuard
         $session->clear(self::SESSION_KEY);
         $session->clear(self::SESSION_AUTH_TYPE);
         $session->clear(self::SESSION_MEMBER_ID);
+        $session->clear(self::SESSION_LAST_ACTIVITY);
         $session->save($request);
     }
 

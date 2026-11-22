@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Camera Control</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -28,7 +28,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <style>
         .cam-workspace {
             display: grid;
@@ -301,7 +301,7 @@
 
 <div id="status-toast" class="status-toast"></div>
 <% include App\Visca\Includes\PanelCameraJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

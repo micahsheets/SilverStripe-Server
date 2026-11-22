@@ -2,7 +2,8 @@
 const p300State = {
     csrfToken: '',
     devices: [],
-    activeDeviceId: 0
+    activeDeviceId: 0,
+    activeLocationId: 0
 };
 
 function showP300Toast(message, isError = false) {
@@ -152,7 +153,20 @@ function renderP300() {
         return;
     }
 
-    p300State.devices.forEach(dev => {
+    const visibleDevices = p300State.activeLocationId === 0
+        ? p300State.devices
+        : p300State.devices.filter(d => Number(d.locationId || 0) === p300State.activeLocationId);
+
+    if (visibleDevices.length === 0) {
+        workspace.innerHTML = '<div class="p300-hero-card" style="color:var(--text-muted);">No Shure P300 DSP units assigned to this room.</div>';
+        return;
+    }
+
+    if (!visibleDevices.some(d => d.id === p300State.activeDeviceId)) {
+        p300State.activeDeviceId = visibleDevices[0].id;
+    }
+
+    visibleDevices.forEach(dev => {
         const btn = document.createElement('button');
         btn.className = 'device-tab' + (dev.id === p300State.activeDeviceId ? ' active' : '');
         btn.textContent = dev.title + (dev.online ? '' : ' (Offline)');
@@ -160,7 +174,7 @@ function renderP300() {
         tabs.appendChild(btn);
     });
 
-    const dev = getActiveP300();
+    const dev = visibleDevices.find(d => d.id === p300State.activeDeviceId) || visibleDevices[0];
     if (!dev) return;
 
     document.getElementById('p300ConnectionDot').style.backgroundColor = dev.online ? '#22c55e' : '#ef4444';
@@ -286,4 +300,14 @@ applyP300ViewMode(localStorage.getItem('p300_view_mode') || 'grid');
 
 loadP300Status();
 setInterval(loadP300Status, 10000);
+
+document.addEventListener('click', (e) => {
+    const rBtn = e.target.closest('.unified-room-tabs .room-tab');
+    if (!rBtn) return;
+    p300State.activeLocationId = parseInt(rBtn.dataset.locationId || '0', 10);
+    document.querySelectorAll('.unified-room-tabs .room-tab').forEach(b => {
+        b.classList.toggle('active', b === rBtn);
+    });
+    renderP300();
+});
 </script>

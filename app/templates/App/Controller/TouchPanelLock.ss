@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>Unlock AV Touch Panel<% end_if %></title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
     <style>
         body.lock-panel {
             display: flex;
@@ -119,10 +119,10 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
 </head>
-<body class="lock-panel" data-theme="$PanelTheme">
-    <form class="lock-box" method="POST" action="/panel/unlock">
+<body class="lock-panel" data-theme="$PanelTheme" style="cursor:pointer;">
+    <form class="lock-box" method="POST" action="/panel/unlock" style="cursor:default;" onclick="event.stopPropagation()">
         <% if $PanelSettings.PanelLogo.exists %>
             <img src="$PanelSettings.PanelLogo.ScaleHeight(64).URL" alt="Logo" style="max-height:64px; width:auto; margin-bottom:12px;">
         <% end_if %>
@@ -147,6 +147,12 @@
         </div>
     </form>
     <script>
+        document.body.addEventListener('click', function (e) {
+            if (e.target.closest('.lock-box') || e.target.closest('.sys-pwr-modal') || e.target.closest('#sysPowerHeaderBtn')) {
+                return;
+            }
+            window.location.href = '/panel/splash';
+        });
         let pin = "";
         function addDigit(d) { if (pin.length < 8) { pin += d; updatePin(); } }
         function clearPin() { pin = ""; updatePin(); }

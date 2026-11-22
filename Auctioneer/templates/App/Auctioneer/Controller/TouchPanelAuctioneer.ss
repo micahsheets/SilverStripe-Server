@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>Auctioneer Mic Kiosk<% end_if %></title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,7 +30,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <style>
         html, body { height: 100%; margin: 0; overflow-x: hidden; }
         .auc-shell { min-height: 100vh; display: flex; flex-direction: column; padding: 10px 12px; box-sizing: border-box; gap: 10px; }
@@ -63,18 +63,64 @@
         .auc-splash-logout-btn { margin-top: 6px; min-width: 220px; padding: 15px 28px; font-size: 1.1rem; font-weight: 700; border-radius: 999px; background: #dc2626; border: 1px solid #ef4444; color: #ffffff; cursor: pointer; touch-action: manipulation; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
         .auc-splash-logout-btn:active { transform: scale(0.98); }
 
-        .auc-modal { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.86); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 12px; }
+        .auc-modal { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(6px); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 14px; box-sizing: border-box; }
         .auc-modal.open { display: flex; }
-        .auc-pin-card { width: min(380px, 100%); background: #0f172a; color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-        body[data-theme="light"] .auc-pin-card { background: #ffffff; color: #0f172a; }
-        .auc-pin-display { text-align: center; font-size: 1.6rem; letter-spacing: 0.35em; padding: 10px; border-radius: 10px; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(148, 163, 184, 0.3); min-height: 2.2rem; }
-        body[data-theme="light"] .auc-pin-display { background: #f8fafc; }
-        .auc-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .auc-key { height: 54px; font-size: 1.25rem; font-weight: 700; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.3); background: rgba(30, 41, 59, 0.85); color: inherit; cursor: pointer; touch-action: manipulation; }
-        body[data-theme="light"] .auc-key { background: #e2e8f0; }
-        .auc-key:active { background: #2563eb; color: #fff; }
+        .auc-pin-card { width: min(440px, 100%); background: var(--card-bg, #0f172a); color: var(--text-main, #f8fafc); border: 1px solid var(--card-border, rgba(148, 163, 184, 0.25)); border-radius: 26px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45); box-sizing: border-box; }
+        .auc-pin-cancel { background: var(--control-bg, rgba(30, 41, 59, 0.85)); border: 2px solid var(--card-border, rgba(148, 163, 184, 0.3)); color: var(--text-main, inherit); border-radius: 14px; padding: 8px 14px; font-size: 0.92rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+        .auc-pin-display { background: var(--control-bg, rgba(15, 23, 42, 0.75)); border: 2px solid var(--card-border, rgba(148, 163, 184, 0.3)); color: var(--accent, #38bdf8); font-size: 2.3rem; letter-spacing: 14px; padding: 10px 18px; border-radius: 16px; min-height: 64px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+        .auc-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .auc-key { background: var(--control-bg, rgba(30, 41, 59, 0.85)); border: 2px solid var(--card-border, rgba(148, 163, 184, 0.3)); color: var(--text-main, inherit); font-size: 1.9rem; font-weight: 700; min-height: 68px; padding: 10px; border-radius: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; touch-action: manipulation; transition: transform 0.08s ease, background-color 0.12s ease; }
+        .auc-key:active { background: var(--accent, #38bdf8); color: #0f172a; transform: scale(0.97); }
+        .auc-key.submit { background: var(--success, #22c55e); border-color: var(--success, #22c55e); color: #0f172a; font-size: 1.55rem; font-weight: 800; letter-spacing: 0.05em; }
+        .auc-key.clear { background: rgba(239, 68, 68, 0.22); border-color: rgba(239, 68, 68, 0.55); color: #fca5a5; font-size: 1.25rem; font-weight: 800; letter-spacing: 0.04em; }
+        body[data-theme="light"] .auc-key.clear { background: rgba(254, 226, 226, 0.9); border-color: rgba(220, 38, 38, 0.5); color: #b91c1c; }
 
         .auc-dsp-panel { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+        @media (min-width: 960px) {
+            #aucActiveView.auc-dsp-panel {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr auto;
+                grid-template-rows: auto auto;
+                gap: 8px;
+                align-items: stretch;
+            }
+            /* Card 2: 8-Band Parametric EQ -> Full Width Top Row */
+            .auc-dsp-panel > .auc-card:nth-child(2) {
+                grid-column: 1 / -1;
+                grid-row: 1;
+            }
+            /* Card 1: Mic Preamp & Gain -> Bottom Left */
+            .auc-dsp-panel > .auc-card:nth-child(1) {
+                grid-column: 1;
+                grid-row: 2;
+            }
+            /* Card 3: Compressor -> Bottom Middle */
+            .auc-dsp-panel > .auc-card:nth-child(3) {
+                grid-column: 2;
+                grid-row: 2;
+            }
+            /* Action Bar: Save Settings & Log Out -> Bottom Right, side-by-side with Preamp & Compressor */
+            .auc-dsp-panel > .auc-action-bar {
+                grid-column: 3;
+                grid-row: 2;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                min-width: 190px;
+                position: static;
+                margin: 0;
+                padding: 10px 12px;
+                border-radius: 14px;
+                border: 1px solid rgba(148, 163, 184, 0.25);
+            }
+            .auc-dsp-panel > .auc-action-bar .auc-btn {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            #aucActiveView .auc-eq-graph-wrap { height: 120px; }
+        }
         .auc-card { padding: 10px 12px; border-radius: 14px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(148, 163, 184, 0.25); }
         body[data-theme="light"] .auc-card { background: rgba(255, 255, 255, 0.92); }
         .auc-slider-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
@@ -112,7 +158,7 @@
             <button type="button" class="auc-btn" onclick="openStationModal()">Lane / Mic</button>
             <button type="button" class="auc-btn" onclick="openAddAuctioneerModal()">+ User</button>
             <% if $HasOtherModules %><a href="/panel/discover" class="auc-btn" id="aucMainPanelBtn" style="display:none; text-decoration:none;">&larr; Main Panel</a><% end_if %>
-            <button type="button" class="auc-btn" id="aucSystemBtn" style="display:none;" onclick="openSystemPowerModal()">System</button>
+            <button type="button" class="auc-btn" id="aucSystemBtn" style="display:none;" onclick="handleSystemButtonTap(event)">System</button>
         </div>
     </header>
 
@@ -235,11 +281,11 @@
 
 </div>
 
-<div class="auc-modal" id="aucPinModal">
-    <div class="auc-pin-card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <strong id="aucPinTargetName">Enter PIN</strong>
-            <button type="button" class="auc-btn" style="padding:6px 10px;" onclick="closePinModal()">Cancel</button>
+<div class="auc-modal" id="aucPinModal" onclick="if (event.target === this) closePinModal()">
+    <div class="auc-pin-card" onclick="event.stopPropagation()">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <strong id="aucPinTargetName" style="font-size:1.25rem; font-weight:800; letter-spacing:0.02em;">Enter PIN</strong>
+            <button type="button" class="auc-pin-cancel" onclick="closePinModal()">Cancel</button>
         </div>
         <div class="auc-pin-display" id="aucPinDots"></div>
         <div class="auc-keypad">
@@ -252,9 +298,9 @@
             <button type="button" class="auc-key" onclick="appendPin('7')">7</button>
             <button type="button" class="auc-key" onclick="appendPin('8')">8</button>
             <button type="button" class="auc-key" onclick="appendPin('9')">9</button>
-            <button type="button" class="auc-key" onclick="clearPin()">Clear</button>
+            <button type="button" class="auc-key clear" onclick="clearPin()">CLEAR</button>
             <button type="button" class="auc-key" onclick="appendPin('0')">0</button>
-            <button type="button" class="auc-key" style="background:#16a34a; color:#fff;" onclick="submitPinLogin()">OK</button>
+            <button type="button" class="auc-key submit" onclick="submitPinLogin()">GO</button>
         </div>
     </div>
 </div>

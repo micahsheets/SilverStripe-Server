@@ -65,14 +65,14 @@
         const dev = getActiveDevice();
         if (!dev) {
             connDot.style.backgroundColor = '#94a3b8';
-            modelBadge.textContent = '';
+            
             workspaceEl.innerHTML = `<div class="ahm-strip-card" style="text-align:center; padding:26px;"><p style="margin:0;">No active Allen &amp; Heath AHM processors configured for this room. Add one in <strong>/admin/ahm</strong>.</p></div>`;
             return;
         }
 
         state.activeDeviceId = dev.id;
         connDot.style.backgroundColor = dev.online ? '#22c55e' : '#ef4444';
-        modelBadge.textContent = `${dev.model} • ${dev.ip}:${dev.port} (${dev.online ? 'Live' : 'Offline'}${dev.syncedAt ? ' • Synced ' + dev.syncedAt : ''})`;
+        
 
         const sections = [
             { id: 'all', label: 'All Controls' },

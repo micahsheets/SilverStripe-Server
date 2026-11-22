@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Auctioneer\Model\AuctioneerProfile;
 use App\Auctioneer\Model\AuctionPanelStation;
 use App\Security\PanelSecurityGuard;
 use SilverStripe\Control\Controller;
@@ -24,8 +25,17 @@ class SystemPowerController extends Controller
         'execute',
     ];
 
+    public function handleRequest(HTTPRequest $request): HTTPResponse
+    {
+        if (strtoupper($request->httpMethod()) === 'OPTIONS') {
+            return $this->jsonResponse(['success' => true], 200);
+        }
+        return parent::handleRequest($request);
+    }
+
     /**
      * Checks database ADMIN Member PanelPINs first (hashed or plaintext),
+     * then AuctioneerProfile PINs with CanEditSettings = 1,
      * then falls back to the .env PANEL_PANEL_PIN.
      */
     private function isValidAdminPin(string $submittedPin): bool
@@ -49,7 +59,15 @@ class SystemPowerController extends Controller
             }
         }
 
-        // 2. Fallback: Check .env PANEL_PANEL_PIN
+        // 2. Auctioneer profiles granted CanEditSettings = 1
+        foreach (AuctioneerProfile::get()->filter(['Active' => 1, 'CanEditSettings' => 1]) as $auc) {
+            $aucPin = trim((string) $auc->PinCode);
+            if ($aucPin !== '' && hash_equals($aucPin, $pin)) {
+                return true;
+            }
+        }
+
+        // 3. Fallback: Check .env PANEL_PANEL_PIN
         $masterPin = trim((string) Environment::getEnv('PANEL_PANEL_PIN'));
         if ($masterPin !== '' && hash_equals($masterPin, $pin)) {
             return true;
@@ -62,7 +80,7 @@ class SystemPowerController extends Controller
      * Checks if the caller is authorized via:
      * 1) Active session with ADMIN privileges (ADMIN Member PIN, Master .env PIN, or CMS Admin), OR
      * 2) Auctioneer station with CanEditSettings = 1, OR
-     * 3) Inline Admin PIN passed directly from Splash/Lock screen.
+     * 3) Inline Admin/Edit PIN passed directly from Splash/Lock/System PIN modal.
      */
     private function isAuthorizedForPower(HTTPRequest $request, int $stationId = 0, string $inlinePin = ''): bool
     {
@@ -102,13 +120,29 @@ class SystemPowerController extends Controller
         return false;
     }
 
+    private function currentReloadToken(): string
+    {
+        $parts = [];
+        $manifestFile = BASE_PATH . '/app/patch-manifest.json';
+        if (is_file($manifestFile)) {
+            $parts[] = (string) @filemtime($manifestFile) . ':' . (string) @md5_file($manifestFile);
+        }
+        $tokenFile = BASE_PATH . '/var/kiosk-reload-token.txt';
+        if (is_file($tokenFile)) {
+            $parts[] = trim((string) @file_get_contents($tokenFile));
+        }
+        return implode('|', $parts);
+    }
+
     public function status(HTTPRequest $request): HTTPResponse
     {
         $stationId = (int) $request->getVar('station');
         return $this->jsonResponse([
-            'success'    => true,
-            'authorized' => $this->isAuthorizedForPower($request, $stationId),
-            'csrfToken'  => SecurityToken::inst()->getValue(),
+            'success'        => true,
+            'authorized'     => $this->isAuthorizedForPower($request, $stationId),
+            'csrfToken'      => SecurityToken::inst()->getValue(),
+            'timeoutMinutes' => max(0, (int) \App\Model\PanelSettings::current()->SessionTimeoutMinutes),
+            'reloadToken'    => $this->currentReloadToken(),
         ]);
     }
 
@@ -116,9 +150,6 @@ class SystemPowerController extends Controller
     {
         if (!$request->isPOST()) {
             return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
-        }
-        if (!PanelSecurityGuard::isValidCSRF($request)) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
         }
 
         $data = json_decode((string) $request->getBody(), true) ?: $request->postVars();
@@ -140,10 +171,6 @@ class SystemPowerController extends Controller
             return $this->jsonResponse(['success' => false, 'error' => 'POST required.'], 405);
         }
 
-        if (!PanelSecurityGuard::isValidCSRF($request)) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Invalid CSRF token.'], 403);
-        }
-
         $raw = (string) $request->getBody();
         $data = json_decode($raw, true);
         if (!is_array($data)) {
@@ -155,7 +182,11 @@ class SystemPowerController extends Controller
         $inlinePin = trim((string) ($data['admin_pin'] ?? ''));
 
         if (!$this->isAuthorizedForPower($request, $stationId, $inlinePin)) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Admin or Edit PIN privileges required.'], 403);
+            return $this->jsonResponse([
+                'success'     => false,
+                'pinRequired' => true,
+                'error'       => 'Admin or Edit PIN privileges required.',
+            ], 403);
         }
 
         if (!in_array($action, ['reload', 'restart_app', 'reboot_pi', 'shutdown_pi'], true)) {
@@ -164,6 +195,11 @@ class SystemPowerController extends Controller
 
         try {
             if ($action === 'reload') {
+                $varDir = BASE_PATH . '/var';
+                if (!is_dir($varDir)) {
+                    @mkdir($varDir, 0775, true);
+                }
+                @file_put_contents($varDir . '/kiosk-reload-token.txt', (string) microtime(true));
                 return $this->jsonResponse([
                     'success' => true,
                     'action'  => 'reload',
@@ -212,6 +248,9 @@ class SystemPowerController extends Controller
     private function jsonResponse(array $payload, int $status = 200): HTTPResponse
     {
         return HTTPResponse::create(json_encode($payload), $status)
-            ->addHeader('Content-Type', 'application/json');
+            ->addHeader('Content-Type', 'application/json')
+            ->addHeader('Access-Control-Allow-Origin', '*')
+            ->addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            ->addHeader('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-TOKEN, X-Requested-With');
     }
 }

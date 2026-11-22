@@ -28,20 +28,22 @@ class SystemBackupService
             $activeRoutes['/' . ltrim((string) $mod->Route, '/')] = true;
         }
 
+        // Index routes and titles case-insensitively (e.g. App\Rodecaster vs App\RodeCaster)
         $moduleRoutes = [];
         $moduleTitles = [
-            'Core' => 'Core Panel Settings, Branding & Locations',
+            'core' => 'Core Panel Settings, Branding & Locations',
         ];
         foreach (ClassInfo::implementorsOf(TouchPanelModuleInterface::class) as $ctrlClass) {
             $parts = explode('\\', $ctrlClass);
             if (count($parts) >= 3 && $parts[0] === 'App') {
-                $modKey = $parts[1];
-                $moduleRoutes[$modKey] = '/' . ltrim((string) $ctrlClass::getModuleRoute(), '/');
-                $moduleTitles[$modKey] = $ctrlClass::getModuleTitle() . " ({$modKey})";
+                $lowerKey = strtolower($parts[1]);
+                $moduleRoutes[$lowerKey] = '/' . ltrim((string) $ctrlClass::getModuleRoute(), '/');
+                $moduleTitles[$lowerKey] = $ctrlClass::getModuleTitle() . " ({$parts[1]})";
             }
         }
 
         $modules = [];
+        $byLowerKey = [];
         foreach (ClassInfo::subclassesFor(DataObject::class, false) as $class) {
             if (!str_starts_with($class, 'App\\')) {
                 continue;
@@ -56,23 +58,29 @@ class SystemBackupService
             }
 
             $parts = explode('\\', $class);
-            $modKey = ($parts[1] === 'Model') ? 'Core' : $parts[1];
+            $rawKey = ($parts[1] === 'Model') ? 'Core' : $parts[1];
+            $lowerKey = strtolower($rawKey);
 
-            if (!isset($modules[$modKey])) {
-                $route = $moduleRoutes[$modKey] ?? null;
-                $inUse = ($modKey === 'Core') || ($route !== null && isset($activeRoutes[$route]));
-                $modules[$modKey] = [
-                    'key'     => $modKey,
-                    'label'   => $moduleTitles[$modKey] ?? $modKey,
+            if (!isset($byLowerKey[$lowerKey])) {
+                $byLowerKey[$lowerKey] = $rawKey;
+                $route = $moduleRoutes[$lowerKey] ?? null;
+                $inUse = ($lowerKey === 'core') || ($route !== null && isset($activeRoutes[$route]));
+                $modules[$rawKey] = [
+                    'key'     => $rawKey,
+                    'label'   => $moduleTitles[$lowerKey] ?? $rawKey,
                     'inUse'   => $inUse,
                     'classes' => [],
                     'records' => 0,
                 ];
             }
 
+            $canonicalKey = $byLowerKey[$lowerKey];
             $count = (int) $class::get()->count();
-            $modules[$modKey]['classes'][] = $class;
-            $modules[$modKey]['records'] += $count;
+            $modules[$canonicalKey]['classes'][] = $class;
+            $modules[$canonicalKey]['records'] += $count;
+            if ($count > 0) {
+                $modules[$canonicalKey]['inUse'] = true;
+            }
         }
 
         uksort($modules, static function (string $a, string $b): int {

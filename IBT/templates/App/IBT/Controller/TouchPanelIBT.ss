@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - IBT-1-BX Matrix</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,7 +30,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <% include App\VPX\Includes\VPXPreviewCSS %>
     <style>
         .ibt-modal-backdrop { position:fixed; inset:0; background:rgba(2,6,23,0.78); z-index:9999; display:none; align-items:center; justify-content:center; padding:16px; }
@@ -48,7 +48,7 @@
 
     <header class="panel-header">
         <div class="brand-wrap">
-            <span class="status-dot" id="ibtConnectionDot"></span>
+            <span style="display:inline-flex; align-items:center; gap:6px;"><span class="status-dot" id="connectionDot" title="LAN Status"></span><span class="status-dot" id="ibtConnectionDot" title="IBT Device Status"></span></span>
             <% if $PanelSettings.PanelLogo.exists %>
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(36).URL" alt="Logo">
             <% end_if %>
@@ -137,7 +137,7 @@
 
 <div id="toast"></div>
 <% include App\IBT\Includes\PanelIBTJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

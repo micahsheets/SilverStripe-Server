@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> - Video Matrix</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -30,7 +30,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <% include App\VPX\Includes\VPXPreviewCSS %>
 </head>
 <body class="video-panel<% if $VPXSettings.PresetsOnlyMode %> presets-only-mode<% end_if %>" data-theme="$PanelTheme" data-csrf="$SecurityID">
@@ -38,7 +38,7 @@
 
     <header class="panel-header">
         <div class="brand-wrap">
-            <span class="status-dot" id="connectionDot"></span>
+            <span style="display:inline-flex; align-items:center; gap:6px;"><span class="status-dot" id="connectionDot" title="LAN Status"></span><span class="status-dot" id="vpxConnectionDot" title="VPX Devices Status"></span></span>
             <% if $PanelSettings.PanelLogo.exists %>
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(36).URL" alt="Logo">
             <% end_if %>
@@ -101,7 +101,7 @@
 <div id="toast"></div>
 <% include App\VPX\Includes\PanelVPXApiJS %>
 <% include App\VPX\Includes\PanelVPXUiJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

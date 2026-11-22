@@ -217,4 +217,56 @@ body[data-theme="light"] .rc-pad-btn.state-red {
     color: #ffffff;
     box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
 }
+
+/* === 1024PX+ UNIFIED 48PX ROW HEIGHT === */
+@media (min-width: 1024px) {
+    .rc-volume-control {
+        height: 48px !important;
+        min-height: 48px !important;
+        padding: 0 14px !important;
+        border-radius: 11px !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    .rc-mode-controls {
+        height: 48px !important;
+        min-height: 48px !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    .rc-mode-btn,
+    .rc-trans-btn {
+        height: 48px !important;
+        min-height: 48px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        border-radius: 11px !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+}
+
+/* === RODECASTER TRANSPORT & VOLUME BAR ALIGNMENT === */
+body.rodecaster-panel .matrix-toolbar {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+body.rodecaster-panel .rc-transport-bar {
+    display: flex !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+body.rodecaster-panel .rc-volume-control {
+    margin-left: auto !important;
+}
 </style>

@@ -4,41 +4,50 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Lighting Control</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
     <style>
         #enttec-device-meta { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.4; }
         .toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
         .action-controls { display: flex; gap: 12px; align-items: center; }
-        .btn-blackout {
-            padding: 14px 26px;
-            border-radius: 12px;
+        body.lighting-panel .btn-blackout {
+            padding: 18px 34px !important;
+            border-radius: 14px !important;
             border: 1px solid rgba(239, 68, 68, 0.7);
             background: linear-gradient(135deg, #dc2626, #991b1b);
             color: #fff;
-            font-weight: 700;
-            font-size: 1rem;
+            font-weight: 800 !important;
+            font-size: 2rem !important;
+            line-height: 1.15 !important;
             letter-spacing: 0.04em;
             cursor: pointer;
             box-shadow: 0 4px 18px rgba(220, 38, 38, 0.35);
         }
-        .btn-blackout:active { transform: scale(0.97); }
-        .btn-secondary {
-            padding: 13px 18px;
-            border-radius: 12px;
+        body.lighting-panel .btn-blackout:active { transform: scale(0.97); }
+        body.lighting-panel .btn-secondary {
+            padding: 16px 26px !important;
+            border-radius: 14px !important;
             border: 1px solid var(--card-border);
             background: var(--card-bg);
             color: var(--text-main);
-            font-weight: 600;
+            font-size: 1.7rem !important;
+            line-height: 1.2 !important;
+            font-weight: 700 !important;
             cursor: pointer;
+        }
+        body.lighting-panel .device-tab,
+        body.lighting-panel .room-tab {
+            font-size: 1.65rem !important;
+            padding: 14px 24px !important;
+            font-weight: 700 !important;
         }
         .scenes-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
         @media (max-width: 900px) { .scenes-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (max-width: 560px) { .scenes-grid { grid-template-columns: 1fr; } }
-        .scene-card {
+        body.lighting-panel .scene-card {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 24px 20px;
+            border-radius: 18px;
+            padding: 40px 20px 26px !important;
             text-align: center;
             cursor: pointer;
             transition: all 0.16s ease;
@@ -46,7 +55,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 112px;
+            min-height: 150px !important;
             position: relative;
         }
         .scene-card:hover { border-color: var(--accent); transform: translateY(-2px); }
@@ -56,14 +65,20 @@
             box-shadow: 0 0 22px var(--accent-glow);
         }
         .scene-slot-badge {
-            position: absolute; top: 10px; left: 12px; font-size: 0.72rem;
+            position: absolute; top: 10px; left: 12px; font-size: 0.85rem !important;
             color: var(--text-muted); background: rgba(0, 0, 0, 0.35); padding: 2px 8px; border-radius: 6px;
         }
         .scene-type-badge {
-            position: absolute; top: 10px; right: 12px; font-size: 0.7rem;
+            position: absolute; top: 10px; right: 12px; font-size: 0.85rem !important;
             color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em;
         }
-        .scene-title { font-size: 1.15rem; font-weight: 700; word-break: break-word; }
+        body.lighting-panel .scene-card .scene-title,
+        body.lighting-panel .scene-title {
+            font-size: 2.3rem !important;
+            font-weight: 800 !important;
+            line-height: 1.18 !important;
+            word-break: break-word;
+        }
         .recorder-drawer { margin-top: 28px; display: none; }
         .recorder-drawer.open { display: block; }
         .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-top: 14px; }
@@ -78,8 +93,8 @@
             background: var(--control-bg); border: 1px solid var(--card-border); font-size: 0.85rem; cursor: pointer;
         }
         .recorder-actions { display: flex; gap: 12px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
-        .btn-primary { padding: 12px 22px; border-radius: 10px; border: none; background: var(--accent); color: #082f49; font-weight: 700; cursor: pointer; }
-        .btn-danger { padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.6); background: rgba(239, 68, 68, 0.18); color: #fca5a5; font-weight: 700; cursor: pointer; }
+        .btn-primary { padding: 14px 24px; border-radius: 12px; border: none; background: var(--accent); color: #082f49; font-size: 1.2rem; font-weight: 800; cursor: pointer; }
+        .btn-danger { padding: 14px 22px; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.6); background: rgba(239, 68, 68, 0.18); color: #fca5a5; font-size: 1.2rem; font-weight: 800; cursor: pointer; }
     </style>
 <% if $PanelSettings.PanelBackground %>
 <style>
@@ -104,7 +119,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
 </head>
 <body class="lighting-panel" data-theme="$PanelTheme" data-csrf="$SecurityID">
 <div class="panel-backdrop">
@@ -204,7 +219,7 @@
 
 <div id="status-toast" class="status-toast"></div>
 <% include App\Enttec\Includes\PanelLightingJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

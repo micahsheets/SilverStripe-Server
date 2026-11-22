@@ -106,14 +106,14 @@ function renderRooms() {
     const allBtn = document.createElement('button');
     allBtn.className = 'room-tab' + (state.activeLocationId === 0 ? ' active' : '');
     allBtn.textContent = 'All Rooms';
-    allBtn.onclick = () => { state.activeLocationId = 0; render(); };
+    allBtn.onclick = () => { state.activeLocationId = 0; state.selectedDecoderIds.clear(); render(); };
     container.appendChild(allBtn);
 
     state.locations.forEach(loc => {
         const btn = document.createElement('button');
         btn.className = 'room-tab' + (state.activeLocationId === loc.id ? ' active' : '');
         btn.textContent = loc.title;
-        btn.onclick = () => { state.activeLocationId = loc.id; render(); };
+        btn.onclick = () => { state.activeLocationId = loc.id; state.selectedDecoderIds.clear(); render(); };
         container.appendChild(btn);
     });
 }
@@ -143,7 +143,10 @@ function renderPresets() {
     const container = document.getElementById('presetsGrid');
     container.innerHTML = '';
 
-    const visiblePresets = state.presets.filter(p =>
+    const hasRoomDevices = state.activeLocationId === 0
+        || state.decoders.some(d => d.locationId === state.activeLocationId)
+        || state.encoders.some(e => e.locationId === state.activeLocationId);
+    const visiblePresets = !hasRoomDevices ? [] : state.presets.filter(p =>
         state.activeLocationId === 0 || p.locationId === 0 || p.locationId === state.activeLocationId
     );
     section.style.display = visiblePresets.length ? 'block' : 'none';
@@ -177,6 +180,10 @@ function renderDecoders() {
     const visibleDecoders = state.decoders.filter(d =>
         state.activeLocationId === 0 || d.locationId === state.activeLocationId
     );
+
+    if (visibleDecoders.length === 0) {
+        container.innerHTML = '<div style="opacity:0.75; padding:12px;">No VPX displays assigned to this room.</div>';
+    }
 
     visibleDecoders.forEach(dec => {
         const card = document.createElement('div');
@@ -275,7 +282,16 @@ function renderEncoders() {
         if (dec) activeEncoderId = state.activeStreamType === 'audio' ? dec.audioEncoderId : dec.videoEncoderId;
     }
 
-    state.encoders.forEach(enc => {
+    const visibleEncoders = state.encoders.filter(e =>
+        state.activeLocationId === 0 || e.locationId === state.activeLocationId
+    );
+
+    if (visibleEncoders.length === 0) {
+        container.innerHTML = '<div style="opacity:0.75; padding:12px;">No VPX sources assigned to this room.</div>';
+        return;
+    }
+
+    visibleEncoders.forEach(enc => {
         const btn = document.createElement('button');
         btn.className = 'encoder-btn' + (activeEncoderId === enc.id ? ' active-for-selected' : '');
 

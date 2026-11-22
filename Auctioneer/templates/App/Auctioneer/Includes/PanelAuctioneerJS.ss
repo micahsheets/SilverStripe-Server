@@ -25,14 +25,46 @@ function showAucToast(msg, isError = false) {
     t._timer = setTimeout(() => { t.className = ''; }, isError ? 6000 : 2800);
 }
 
-async function aucPost(url, payload) {
+async function refreshAuctioneerHeartbeat() {
+    try {
+        const stationId = aucState.activeStation ? Number(aucState.activeStation.id || 0) : Number(localStorage.getItem('av_auc_station_id') || 0);
+        const res = await fetch('/api/auctioneer/bootstrap' + (stationId > 0 ? ('?station=' + stationId) : ''), {
+            credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            if (data.csrfToken) aucState.csrfToken = data.csrfToken;
+            if (Array.isArray(data.lanes)) aucState.lanes = data.lanes;
+            if (Array.isArray(data.auctioneers)) {
+                aucState.auctioneers = data.auctioneers;
+                const q = (document.getElementById('aucSearchInput')?.value || '').trim().toLowerCase();
+                aucState.filteredAuctioneers = q
+                    ? aucState.auctioneers.filter(a => a.title.toLowerCase().includes(q))
+                    : [...aucState.auctioneers];
+            }
+            if (data.activeStation && aucState.activeStation && data.activeStation.id === aucState.activeStation.id) {
+                aucState.activeStation.auctioneer = data.activeStation.auctioneer;
+            }
+        }
+    } catch (e) {}
+}
+
+async function aucPost(url, payload, isRetry = false) {
     const res = await fetch(url, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': aucState.csrfToken },
         body: JSON.stringify(payload)
     });
     const text = await res.text();
-    try { return JSON.parse(text); } catch (e) { throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 120)); }
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch (e) {}
+    if (!isRetry && res.status === 403 && parsed && /csrf/i.test(String(parsed.error || ''))) {
+        await refreshAuctioneerHeartbeat();
+        return aucPost(url, payload, true);
+    }
+    if (parsed !== null) return parsed;
+    throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 120));
 }
 
 // Logarithmic helpers for Frequency (20Hz - 20kHz) and Q (0.02 - 50)
@@ -745,4 +777,5 @@ async function createAuctioneerProfile() {
 }
 
 initAuctioneerPanel();
+setInterval(refreshAuctioneerHeartbeat, 240000);
 </script>

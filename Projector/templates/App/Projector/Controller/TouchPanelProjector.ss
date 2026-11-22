@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Projector Control</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -28,7 +28,7 @@
     }
 </style>
 <% end_if %>
-    <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
 </head>
 <body class="projector-panel" data-theme="$PanelTheme" data-csrf="$CSRFToken">
 <div class="panel-backdrop">
@@ -63,7 +63,7 @@
         <% if $Projectors %>
             <div class="device-grid" id="projectorsGrid">
                 <% loop $Projectors %>
-                    <div class="dsp-card projector-card" data-device-id="$ID">
+                    <div class="dsp-card projector-card" data-device-id="$ID" data-location-id="$LocationID">
                         <div class="dsp-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
                             <span class="dsp-title" style="font-weight:700; font-size:1.1rem;">$Title</span>
                             <span class="dsp-meta" style="font-size:0.82rem; color:var(--text-muted);">$IPAddress</span>
@@ -83,9 +83,12 @@
                     </div>
                 <% end_loop %>
             </div>
+            <div class="dsp-card" id="projectorEmptyRoomMsg" style="display:none; color:var(--text-muted);">
+                No projectors assigned to this room.
+            </div>
         <% else %>
             <div class="dsp-card" style="color:var(--text-muted);">
-                Drop-in Projector module active. Add <strong>ProjectorDevice</strong> records under <strong>AV System → Projectors</strong> to populate controls.
+                Drop-in Projector module active. Add <strong>ProjectorDevice</strong> records under <strong>AV System &rarr; Projectors</strong> to populate controls.
             </div>
         <% end_if %>
     </main>
@@ -94,7 +97,7 @@
 
 <div id="status-toast" class="status-toast"></div>
 <% include App\Projector\Includes\PanelProjectorJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

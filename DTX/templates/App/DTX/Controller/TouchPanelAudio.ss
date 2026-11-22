@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title><% if $PanelSettings.PanelTitle %>$PanelSettings.PanelTitle<% else %>AV Control Touch Panel<% end_if %> — Audio DSP</title>
-    <link rel="stylesheet" href="/css/touch-panel.css?v=53">
+    <link rel="stylesheet" href="/css/touch-panel.css?v=70">
 <% if $PanelSettings.PanelBackground %>
 <style>
     html body {
@@ -28,7 +28,7 @@
     }
 </style>
 <% end_if %>
-        <link rel="stylesheet" href="/css/touch-panel-light.css?v=53">
+        <link rel="stylesheet" href="/css/touch-panel-light.css?v=70">
     <style>
         .view-toggle-group { display:inline-flex; border-radius:999px; border:1px solid rgba(148,163,184,0.35); overflow:hidden; background:rgba(15,23,42,0.55); }
         body[data-theme="light"] .view-toggle-group { background:rgba(255,255,255,0.85); }
@@ -59,7 +59,7 @@
 
     <header class="panel-header">
         <div class="brand-wrap">
-            <span class="status-dot" id="connectionDot"></span>
+            <span style="display:inline-flex; align-items:center; gap:6px;"><span class="status-dot" id="connectionDot" title="LAN Status"></span><span class="status-dot" id="dtxConnectionDot" title="Audio DSP Device Status"></span></span>
             <% if $PanelSettings.PanelLogo.exists %>
                 <img src="$PanelSettings.PanelLogo.ScaleHeight(36).URL" alt="Logo">
             <% end_if %>
@@ -121,7 +121,7 @@
 
 <div id="status-toast" class="status-toast"></div>
 <% include App\DTX\Includes\PanelAudioJS %>
-<script src="/js/nav-overflow.js?v=53"></script>
+<script src="/js/nav-overflow.js?v=68"></script>
 <% include App\Includes\SystemPowerModal %>
 </body>
 </html>

@@ -7,19 +7,21 @@ use App\Security\PanelPermissionProvider;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\Image;
 use SilverStripe\Core\Validation\ValidationResult;
+use SilverStripe\Forms\DropdownField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\Tab;
 use SilverStripe\Forms\TabSet;
 use SilverStripe\Forms\TextField;
 use SilverStripe\ORM\DataObject;
-use SilverStripe\Forms\DropdownField;
 
 /**
  * @property string $PanelTitle
+ * @property string $PanelTheme
  * @property int $BackgroundOverlayOpacity
  * @property string $BasicPanelPIN
  * @property string $BasicPINPermissions
+ * @property int $SessionTimeoutMinutes
  * @property int $PanelLogoID
  * @property int $PanelBackgroundID
  *
@@ -40,12 +42,14 @@ class PanelSettings extends DataObject
         'BackgroundOverlayOpacity' => 'Int',
         'BasicPanelPIN' => 'Varchar(255)',
         'BasicPINPermissions' => 'Text',
+        'SessionTimeoutMinutes' => 'Int',
     ];
 
     private static array $defaults = [
         'PanelTitle' => 'AV Control',
         'PanelTheme' => 'dark',
         'BackgroundOverlayOpacity' => 82,
+        'SessionTimeoutMinutes' => 0,
     ];
 
     private static array $has_one = [
@@ -66,6 +70,7 @@ class PanelSettings extends DataObject
         'PanelTitle' => 'Touch Panel Title',
         'PanelLogo.CMSThumbnail' => 'Logo',
         'BackgroundOverlayOpacity' => 'Overlay %',
+        'SessionTimeoutMinutes' => 'Auto-Logout (Min)',
     ];
 
     protected ?string $rawBasicPIN = null;
@@ -99,10 +104,10 @@ class PanelSettings extends DataObject
                     DropdownField::create(
                         'PanelTheme',
                         'Touch Panel Color Theme',
-                        array(
+                        [
                             'dark' => 'Dark Theme (Default)',
                             'light' => 'Light Theme',
-                        )
+                        ]
                     ),
                     UploadField::create('PanelLogo', 'Company Logo')
                         ->setFolderName('av-branding')
@@ -131,7 +136,11 @@ class PanelSettings extends DataObject
                         'BasicPINPermissions',
                         'Interfaces Accessible via Basic Shared PIN',
                         $permissionOptions
-                    )->setDescription('Select which control interfaces can be unlocked using the Basic Shared PIN.')
+                    )->setDescription('Select which control interfaces can be unlocked using the Basic Shared PIN.'),
+                    NumericField::create('SessionTimeoutMinutes', 'Auto-Logout Inactivity Timeout (Minutes)')
+                        ->setHTML5(true)
+                        ->setAttribute('min', 0)
+                        ->setDescription('Automatically lock non-Auctioneer touch panel sessions after this many minutes of inactivity (0 = disabled). Auctioneers remain logged in until manually logged out.')
                 )
             )
         );
@@ -173,6 +182,14 @@ class PanelSettings extends DataObject
         }
     }
 
+    public function verifyBasicPIN(string $pin): bool
+    {
+        if (empty($this->BasicPanelPIN)) {
+            return false;
+        }
+        return password_verify($pin, (string) $this->BasicPanelPIN);
+    }
+
     public function basicPINAllows(string $permissionCode): bool
     {
         if (empty($this->BasicPINPermissions)) {
@@ -186,7 +203,6 @@ class PanelSettings extends DataObject
             return false;
         }
 
-        // Discovery is permitted if the Basic PIN can access at least one module
         if ($permissionCode === PanelPermissionProvider::PERM_ACCESS_DISCOVERY) {
             return count($decoded) > 0;
         }
@@ -204,7 +220,7 @@ class PanelSettings extends DataObject
             ->exists();
     }
 
-    public function canCreate($member = null, $context = array()): bool
+    public function canCreate($member = null, $context = []): bool
     {
         return self::get()->count() === 0 && parent::canCreate($member, $context);
     }

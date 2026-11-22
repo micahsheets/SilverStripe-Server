@@ -1,0 +1,7 @@
+---
+Name: app-network-status-routes
+Before: '#approutes'
+---
+SilverStripe\Control\Director:
+  rules:
+    'api/network-status//$Action/$ID': 'App\Controller\NetworkStatusController'

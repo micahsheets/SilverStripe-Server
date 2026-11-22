@@ -56,5 +56,19 @@
 
         sendProjectorCommand(deviceId, command, label);
     });
+    document.querySelectorAll('.unified-room-tabs .room-tab').forEach(rBtn => {
+        rBtn.addEventListener('click', () => {
+            const locId = rBtn.dataset.locationId || '0';
+            document.querySelectorAll('.unified-room-tabs .room-tab').forEach(b => b.classList.toggle('active', b === rBtn));
+            let visibleCount = 0;
+            document.querySelectorAll('#projectorsGrid .projector-card').forEach(card => {
+                const matches = locId === '0' || String(card.dataset.locationId || '0') === locId;
+                card.style.display = matches ? '' : 'none';
+                if (matches) visibleCount++;
+            });
+            const emptyMsg = document.getElementById('projectorEmptyRoomMsg');
+            if (emptyMsg) emptyMsg.style.display = visibleCount === 0 ? '' : 'none';
+        });
+    });
 })();
 </script>

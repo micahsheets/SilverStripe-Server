@@ -1760,3 +1760,262 @@ body[data-theme="light"] .scroll-more-cue {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-3px); }
 }
+
+/* Dynamic LAN Connection Dot States */
+.status-dot {
+    transition: background-color 0.25s ease, box-shadow 0.25s ease;
+}
+.status-dot.offline {
+    background-color: var(--danger, #ef4444);
+    box-shadow: 0 0 8px var(--danger, #ef4444);
+}
+
+/* === 1024PX+ LARGE TOUCH CONTROLS & COMBINED DEVICE/LOCATION BAR === */
+.panel-header {
+    position: relative !important;
+    z-index: 1000 !important;
+}
+.panel-main {
+    position: relative !important;
+    z-index: 1 !important;
+}
+.panel-header .nav-tabs,
+.panel-header .nav-pill,
+.panel-header .nav-more-wrap,
+.panel-header .nav-more-btn,
+.nav-more-dropdown,
+.nav-more-dropdown .nav-dropdown-item {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+}
+.nav-more-dropdown {
+    z-index: 99999 !important;
+}
+
+@media (min-width: 1024px) {
+    /* Row 1: Top navigation bar */
+    .panel-header .nav-tabs {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+        min-width: 0 !important;
+        flex: 0 1 auto !important;
+    }
+    .panel-header .nav-more-wrap {
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+
+    /* Combined Row 2: Devices on the left, Locations + Network Discovery/Actions on the right */
+    .combined-filter-bar {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        width: 100% !important;
+        margin-bottom: 10px !important;
+        flex: 0 0 auto !important;
+        flex-wrap: nowrap !important;
+        position: relative !important;
+        z-index: 50 !important;
+    }
+    .combined-filter-left {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+    .combined-filter-right {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        flex: 0 1 auto !important;
+        min-width: 0 !important;
+        margin-left: auto !important;
+    }
+    .combined-filter-bar .device-tabs,
+    .combined-filter-bar .room-tabs {
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: nowrap !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+        overflow: visible !important;
+    }
+
+    /* Unified button size across ALL top bars & nested Audio DSP toolbar actions (48px height, 0.90rem font) */
+    .panel-header .nav-pill,
+    .panel-header .nav-more-btn,
+    .panel-header .nav-pill.lock-btn,
+    .panel-header .lock-btn,
+    body .device-tabs .device-tab,
+    .room-tabs .room-tab,
+    .matrix-toolbar .room-tab,
+    .combined-filter-bar .nav-more-btn,
+    .combined-filter-right .nav-pill,
+    .combined-filter-right button:not(.nav-more-btn),
+    .combined-filter-right .view-toggle-btn,
+    #btn-refresh-dtx,
+    #btn-discover-dtx,
+    #btn-discover-ptz,
+    #btnRefreshAhm {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 48px !important;
+        min-height: 48px !important;
+        padding: 0 15px !important;
+        line-height: 1.1 !important;
+        font-size: 0.90rem !important;
+        font-weight: 700 !important;
+        border-radius: 11px !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+        vertical-align: middle !important;
+    }
+    .panel-header .nav-pill.lock-btn,
+    .panel-header .lock-btn {
+        font-weight: 800 !important;
+    }
+
+    /* Unified opacity (0.96) for room selector, Network Discovery, Refresh Channels & toolbar action buttons */
+    .room-tabs .room-tab,
+    .matrix-toolbar .room-tab,
+    .combined-filter-right .nav-pill,
+    .combined-filter-right button:not(.view-toggle-btn),
+    a.nav-pill[href="/panel/discover"],
+    #btn-refresh-dtx,
+    #btn-discover-dtx,
+    #btn-discover-ptz,
+    #btnRefreshAhm {
+        background: rgba(15, 23, 42, 0.96) !important;
+        border: 1.5px solid rgba(148, 163, 184, 0.52) !important;
+        color: #f8fafc !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45) !important;
+    }
+    .room-tabs .room-tab:hover,
+    .matrix-toolbar .room-tab:hover,
+    .combined-filter-right .nav-pill:hover,
+    .combined-filter-right button:not(.view-toggle-btn):hover,
+    a.nav-pill[href="/panel/discover"]:hover,
+    #btn-refresh-dtx:hover,
+    #btn-discover-dtx:hover,
+    #btn-discover-ptz:hover,
+    #btnRefreshAhm:hover {
+        background: rgba(30, 41, 59, 0.98) !important;
+        border-color: #38bdf8 !important;
+        color: #ffffff !important;
+    }
+    .room-tabs .room-tab.active,
+    .matrix-toolbar .room-tab.active {
+        background: rgba(14, 116, 144, 0.98) !important;
+        border-color: #38bdf8 !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.5) !important;
+    }
+
+    .combined-filter-right .view-toggle-group {
+        display: inline-flex !important;
+        align-items: center !important;
+        height: 48px !important;
+    }
+
+    /* Touch targets inside overflow dropdowns on 1024px+ */
+    .nav-more-dropdown .nav-dropdown-item {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        min-height: 44px !important;
+        padding: 0 15px !important;
+        line-height: 1.15 !important;
+        font-size: 0.90rem !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* === DOT-ONLY ONLINE/OFFLINE INDICATORS === */
+#ahmModelBadge {
+    display: none !important;
+}
+.status-pill {
+    display: inline-block !important;
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    color: transparent !important;
+    overflow: hidden !important;
+    vertical-align: middle !important;
+    border: none !important;
+    background: #ef4444 !important;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.65) !important;
+}
+.status-pill.online,
+.status-pill.is-online,
+.status-pill.connected {
+    background: #22c55e !important;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.75) !important;
+}
+.status-pill.offline,
+.status-pill.is-offline,
+.status-pill.disconnected {
+    background: #ef4444 !important;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.65) !important;
+}
+
+#ahmConnectionDot {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
+    border-radius: 999px !important;
+    display: inline-block !important;
+}
+
+/* === UNIFIED DUAL STATUS DOTS === */
+.status-dot,
+#connectionDot,
+#ahmConnectionDot,
+#p300ConnectionDot,
+#dtxConnectionDot,
+#ibtConnectionDot,
+#vpxConnectionDot,
+.status-pill {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    max-width: 12px !important;
+    min-height: 12px !important;
+    max-height: 12px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 999px !important;
+    display: inline-block !important;
+    flex: 0 0 12px !important;
+    box-sizing: border-box !important;
+}
+.ping-badge {
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    gap: 0 !important;
+}
+.ping-badge > span:not(.ping-dot) {
+    display: none !important;
+}
+.ping-badge .ping-dot {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
+}

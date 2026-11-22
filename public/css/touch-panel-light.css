@@ -255,3 +255,36 @@ body[data-theme="light"] .nav-more-dropdown .nav-pill.nav-dropdown-item.active {
     background: #0284c7 !important;
     color: #ffffff !important;
 }
+
+/* === 1024PX+ LIGHT THEME OPAQUE FILTER & DISCOVER BUTTONS === */
+@media (min-width: 1024px) {
+    html body[data-theme="light"] .room-tabs .room-tab,
+    html body[data-theme="light"] .matrix-toolbar .room-tab,
+    html body[data-theme="light"] .combined-filter-right .nav-pill,
+    html body[data-theme="light"] .combined-filter-right button:not(.view-toggle-btn),
+    html body[data-theme="light"] a.nav-pill[href="/panel/discover"],
+    html body[data-theme="light"] #btn-refresh-dtx,
+    html body[data-theme="light"] #btn-discover-dtx,
+    html body[data-theme="light"] #btn-discover-ptz,
+    html body[data-theme="light"] #btnRefreshAhm {
+        background: rgba(255, 255, 255, 0.96) !important;
+        border-color: rgba(15, 23, 42, 0.35) !important;
+        color: #0f172a !important;
+    }
+    html body[data-theme="light"] .room-tabs .room-tab.active,
+    html body[data-theme="light"] .matrix-toolbar .room-tab.active {
+        background: rgba(2, 132, 199, 0.98) !important;
+        border-color: #0284c7 !important;
+        color: #ffffff !important;
+    }
+}
+
+/* === DOT-ONLY ONLINE/OFFLINE INDICATORS === */
+html body[data-theme="light"] .status-pill {
+    background: #ef4444 !important;
+}
+html body[data-theme="light"] .status-pill.online,
+html body[data-theme="light"] .status-pill.is-online,
+html body[data-theme="light"] .status-pill.connected {
+    background: #22c55e !important;
+}

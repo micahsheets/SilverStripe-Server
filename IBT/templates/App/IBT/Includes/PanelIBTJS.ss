@@ -223,13 +223,13 @@ function renderIbtRooms() {
     const allBtn = document.createElement('button');
     allBtn.className = 'room-tab' + (ibtState.activeLocationId === 0 ? ' active' : '');
     allBtn.textContent = 'All Rooms';
-    allBtn.onclick = () => { ibtState.activeLocationId = 0; renderIbt(); };
+    allBtn.onclick = () => { ibtState.activeLocationId = 0; ibtState.selectedDecoderIds.clear(); renderIbt(); };
     c.appendChild(allBtn);
     ibtState.locations.forEach(loc => {
         const btn = document.createElement('button');
         btn.className = 'room-tab' + (ibtState.activeLocationId === loc.id ? ' active' : '');
         btn.textContent = loc.title;
-        btn.onclick = () => { ibtState.activeLocationId = loc.id; renderIbt(); };
+        btn.onclick = () => { ibtState.activeLocationId = loc.id; ibtState.selectedDecoderIds.clear(); renderIbt(); };
         c.appendChild(btn);
     });
 }
@@ -251,7 +251,10 @@ function renderIbtPresets() {
     const sec = document.getElementById('ibtPresetsSection');
     const c = document.getElementById('ibtPresetsGrid');
     c.innerHTML = '';
-    const list = ibtState.presets.filter(p => ibtState.activeLocationId === 0 || p.locationId === 0 || p.locationId === ibtState.activeLocationId);
+    const hasIbtRoomDevices = ibtState.activeLocationId === 0
+        || ibtState.decoders.some(d => d.locationId === ibtState.activeLocationId)
+        || ibtState.encoders.some(e => e.locationId === ibtState.activeLocationId);
+    const list = !hasIbtRoomDevices ? [] : ibtState.presets.filter(p => ibtState.activeLocationId === 0 || p.locationId === 0 || p.locationId === ibtState.activeLocationId);
     sec.style.display = list.length ? 'block' : 'none';
     list.forEach(p => {
         const btn = document.createElement('button');

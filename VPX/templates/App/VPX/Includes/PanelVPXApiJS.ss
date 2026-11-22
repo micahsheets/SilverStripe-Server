@@ -59,7 +59,7 @@ async function loadStatus() {
         }
         render();
     } catch (err) {
-        document.getElementById('connectionDot').style.backgroundColor = '#ef4444';
+        const vpxDotErr = document.getElementById('vpxConnectionDot'); if (vpxDotErr) vpxDotErr.style.backgroundColor = '#ef4444';
         showToast(err.message || 'Unable to reach VPX API server', true);
     }
 }

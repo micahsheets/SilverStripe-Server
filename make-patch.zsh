@@ -9,16 +9,13 @@ BASE_VERSION="${opt_version[2]:-1.0}"
 JULIAN_SUFFIX=$(date +%y%j-%H%M%S)
 VERSION="${BASE_VERSION}-${JULIAN_SUFFIX}"
 
-# Core folders always included in every patch
-CORE_DIRS=("app" "public")
-
 # Exclude system/non-module top-level folders when auto-detecting available modules
 IGNORE_DIRS=("app" "public" "vendor" "silverstripe-cache" ".git" ".github" ".ddev" ".vscode" "node_modules" "patches")
 
-# Discover top-level module folders automatically
+# Discover top-level SilverStripe module folders automatically (must contain _config.php)
 AVAILABLE_MODULES=()
 for d in *(/); do
-  if (( ! ${IGNORE_DIRS[(Ie)$d]} )); then
+  if (( ! ${IGNORE_DIRS[(Ie)$d]} )) && [[ -f "$d/_config.php" ]]; then
     AVAILABLE_MODULES+=("$d")
   fi
 done
@@ -34,12 +31,16 @@ if (( $# > 0 )); then
   fi
 else
   echo "Building patch version: $VERSION"
-  echo "Available top-level modules:"
-  for i in {1..${#AVAILABLE_MODULES}}; do
-    echo "  [$i] ${AVAILABLE_MODULES[$i]}"
-  done
-  echo ""
-  read "CHOICES?Enter module numbers separated by spaces (or 'all' / 'none'): "
+  if (( ${#AVAILABLE_MODULES} > 0 )); then
+    echo "Available top-level modules:"
+    for i in {1..${#AVAILABLE_MODULES}}; do
+      echo "  [$i] ${AVAILABLE_MODULES[$i]}"
+    done
+    echo ""
+    read "CHOICES?Enter module numbers separated by spaces (or 'all' / 'none'): "
+  else
+    CHOICES="none"
+  fi
 
   SELECTED_MODULES=()
   if [[ "$CHOICES" == "all" ]]; then
@@ -65,28 +66,22 @@ mkdir -p patches
 OUT="patches/av-panel-patch-${VERSION}.zip"
 TMP_DIR=$(mktemp -d)
 
-# Build JSON array of included modules for manifest.json
-MODULES_JSON="["
-for i in {1..${#SELECTED_MODULES}}; do
-  MODULES_JSON+="\"${SELECTED_MODULES[$i]}\""
-  (( i < ${#SELECTED_MODULES} )) && MODULES_JSON+=", "
+# Build valid JSON array of included modules
+QUOTED_MODULES=()
+for mod in "${SELECTED_MODULES[@]}"; do
+  QUOTED_MODULES+=("\"${mod}\"")
 done
-MODULES_JSON+="]"
+MODULES_JSON="[${(j:, :)QUOTED_MODULES}]"
 
-cat << EOF > "$TMP_DIR/manifest.json"
-{
-  "target": "av-touchpanel",
-  "version": "${VERSION}",
-  "modules": ${MODULES_JSON},
-  "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
+MANIFEST_CONTENT=$(printf '{\n  "target": "av-touchpanel",\n  "version": "%s",\n  "modules": %s,\n  "created": "%s"\n}\n' \
+  "$VERSION" "$MODULES_JSON" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
 
-# 1. Stage core directories & Composer PSR-4 autoload map
+printf '%s\n' "$MANIFEST_CONTENT" > "$TMP_DIR/manifest.json"
+printf '%s\n' "$MANIFEST_CONTENT" > app/patch-manifest.json
+
+# 1. Stage core directories (never overwrite vendor/composer autoloader hashes)
 rsync -a --exclude='.DS_Store' app/ "$TMP_DIR/app/"
 cp composer.json "$TMP_DIR/composer.json"
-mkdir -p "$TMP_DIR/vendor/composer"
-rsync -a --exclude='.DS_Store' vendor/composer/ "$TMP_DIR/vendor/composer/" 
 rsync -a --exclude='.DS_Store' --exclude='assets/' public/ "$TMP_DIR/public/"
 
 # 2. Stage selected top-level module directories
@@ -99,6 +94,5 @@ rm -rf "$TMP_DIR"
 
 echo ""
 echo "Created patch bundle: $OUT"
-echo "Version:          ${VERSION}"
-echo "Included core:    ${CORE_DIRS[*]}"
-echo "Included modules: ${SELECTED_MODULES[*]:-none}"
+echo "Verified manifest.json:"
+unzip -p "$OUT" manifest.json
